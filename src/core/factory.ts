@@ -15,9 +15,33 @@ import {
 } from "./state";
 
 const CARD_POOL = {
-  koran: defineCard("koran", "コラン", 1, 1, 2),
-  korantan: defineCard("korantan", "コランタン", 3, 3, 3),
-  korangarth: defineCard("korangarth", "コランガース", 5, 6, 6),
+  koran: defineCard(
+    "koran",
+    "コラン",
+    1,
+    1,
+    2,
+    { options: [{ dirs: "all8", range: 1 }] },
+    { pattern: "adjacent", range: 1, lineOfSight: false },
+  ),
+  korantan: defineCard(
+    "korantan",
+    "コランタン",
+    3,
+    3,
+    3,
+    { options: [{ dirs: "orthogonal", range: 2 }] },
+    { pattern: "adjacent", range: 1, lineOfSight: false },
+  ),
+  korangarth: defineCard(
+    "korangarth",
+    "コランガース",
+    5,
+    6,
+    6,
+    { options: [{ dirs: "all8", range: 3, pass: "all" }] },
+    { pattern: "line", dirs: "orthogonal", range: 2, lineOfSight: true },
+  ),
 } as const;
 
 function defineCard(
@@ -26,8 +50,10 @@ function defineCard(
   manaCost: number,
   attack: number,
   life: number,
+  move: CardDefinition["move"],
+  attackProfile: CardDefinition["attackProfile"],
 ): CardDefinition {
-  return { cardId, displayName, manaCost, attack, life, moveRange: 1, attackRange: 1 };
+  return { cardId, displayName, manaCost, attack, life, move, attackProfile };
 }
 
 function handCard(cardInstanceId: string, definition: CardDefinition): HandCard {

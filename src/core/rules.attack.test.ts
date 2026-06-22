@@ -5,7 +5,15 @@ import {
   tryAttackHeadquarters,
 } from "./rules.attack";
 import { card, state, unit } from "./test-utils";
-import { position } from "./state";
+import { BoardPosition, position } from "./state";
+
+function cells(actual: BoardPosition[]): string[] {
+  return actual.map((p) => `${p.row},${p.col}`).sort();
+}
+
+function attackCard(attackProfile: unknown, attack = 1, life = 1) {
+  return card({ attack, life, attackProfile } as any);
+}
 
 function pair(attackerAtk: number, attackerLife: number, targetAtk: number, targetLife: number) {
   return state({
@@ -35,8 +43,8 @@ describe("tryAttack (mutual damage)", () => {
     if (!result.ok) return;
     const a = result.state.units.find((u) => u.unitId === "a");
     const t = result.state.units.find((u) => u.unitId === "t");
-    expect(a?.currentLife).toBe(3); // 5 - 2 counter
-    expect(t?.currentLife).toBe(1); // 4 - 3
+    expect(a?.currentLife).toBe(3);
+    expect(t?.currentLife).toBe(1);
     expect(a?.hasAttackedThisTurn).toBe(true);
   });
 
@@ -53,17 +61,7 @@ describe("tryAttack (mutual damage)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state.units.map((u) => u.unitId)).toEqual(["a"]);
-    expect(result.state.units[0].currentLife).toBe(4); // 5 - 1 counter
-  });
-
-  it("rejects an out-of-range target", () => {
-    const s = state({
-      units: [
-        unit({ unitId: "a", owner: "player", position: position(3, 3) }),
-        unit({ unitId: "t", owner: "enemy", position: position(3, 5) }),
-      ],
-    });
-    expect(tryAttack(s, "a", "t").ok).toBe(false);
+    expect(result.state.units[0].currentLife).toBe(4);
   });
 
   it("rejects attacking a friendly unit", () => {
@@ -84,11 +82,56 @@ describe("tryAttack (mutual damage)", () => {
 });
 
 describe("getLegalAttackCells", () => {
-  it("includes only enemy units in range (the enemy HQ has no board cell)", () => {
-    const s = pair(3, 5, 2, 4);
-    const cells = getLegalAttackCells(s, "a");
-    expect(cells).toContainEqual(position(3, 4));
-    expect(cells).toHaveLength(1);
+  it("adjacent attacks include only neighboring enemy units", () => {
+    const s = state({
+      units: [
+        unit({
+          unitId: "a",
+          owner: "player",
+          position: position(3, 3),
+          definition: attackCard({ pattern: "adjacent", range: 1, lineOfSight: false }),
+        }),
+        unit({ unitId: "enemy", owner: "enemy", position: position(2, 2) }),
+        unit({ unitId: "far", owner: "enemy", position: position(1, 1) }),
+        unit({ unitId: "friendly", owner: "player", position: position(3, 4) }),
+      ],
+    });
+    expect(cells(getLegalAttackCells(s, "a"))).toEqual(["2,2"]);
+  });
+
+  it("line attacks respect directions, range, and line of sight blockers", () => {
+    const s = state({
+      units: [
+        unit({
+          unitId: "a",
+          owner: "player",
+          position: position(3, 3),
+          definition: attackCard({ pattern: "line", dirs: "orthogonal", range: 3, lineOfSight: true }),
+        }),
+        unit({ unitId: "blocker", owner: "player", position: position(3, 4) }),
+        unit({ unitId: "hidden", owner: "enemy", position: position(3, 5) }),
+        unit({ unitId: "visible", owner: "enemy", position: position(1, 3) }),
+        unit({ unitId: "diagonal", owner: "enemy", position: position(2, 2) }),
+      ],
+    });
+    expect(cells(getLegalAttackCells(s, "a"))).toEqual(["1,3"]);
+  });
+
+  it("tryAttack uses structured attack legality", () => {
+    const s = state({
+      units: [
+        unit({
+          unitId: "a",
+          owner: "player",
+          position: position(3, 3),
+          definition: attackCard({ pattern: "line", dirs: "orthogonal", range: 2, lineOfSight: true }),
+        }),
+        unit({ unitId: "t", owner: "enemy", position: position(3, 5) }),
+        unit({ unitId: "d", owner: "enemy", position: position(2, 2) }),
+      ],
+    });
+    expect(tryAttack(s, "a", "t").ok).toBe(true);
+    expect(tryAttack(s, "a", "d").ok).toBe(false);
   });
 });
 
@@ -109,7 +152,7 @@ describe("tryAttackHeadquarters (no counter, off-board, Hearthstone-style)", () 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state.enemyLife).toBe(17);
-    expect(result.state.units[0].currentLife).toBe(5); // no counter
+    expect(result.state.units[0].currentLife).toBe(5);
     expect(result.state.units[0].hasAttackedThisTurn).toBe(true);
   });
 

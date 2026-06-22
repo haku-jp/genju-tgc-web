@@ -16,8 +16,8 @@ export function card(partial: Partial<CardDefinition> = {}): CardDefinition {
     manaCost: 1,
     attack: 1,
     life: 1,
-    moveRange: 1,
-    attackRange: 1,
+    move: { options: [{ dirs: "orthogonal", range: 1 }] },
+    attackProfile: { pattern: "adjacent", range: 1, lineOfSight: false },
     ...partial,
   };
 }

@@ -26,14 +26,34 @@ export interface BoardPosition {
   readonly col: number;
 }
 
+export type DirSet = "orthogonal" | "diagonal" | "all8" | "knight" | "forward";
+
+export interface MoveOption {
+  readonly dirs: DirSet;
+  readonly range: number;
+  readonly pass?: "none" | "enemies" | "all";
+}
+
+export interface MoveProfile {
+  readonly options: MoveOption[];
+}
+
+export interface AttackProfile {
+  readonly pattern: "adjacent" | "line";
+  readonly dirs?: DirSet;
+  readonly range: number;
+  readonly lineOfSight: boolean;
+}
+
 export interface CardDefinition {
+  readonly [key: string]: unknown;
   readonly cardId: string;
   readonly displayName: string;
   readonly manaCost: number;
   readonly attack: number;
   readonly life: number;
-  readonly moveRange: number;
-  readonly attackRange: number;
+  readonly move: MoveProfile;
+  readonly attackProfile: AttackProfile;
 }
 
 export interface HandCard {

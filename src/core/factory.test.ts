@@ -44,6 +44,25 @@ describe("createInitialBattleState", () => {
     });
   });
 
+  it("assigns distinct structured movement and attack profiles to the placeholder cards", () => {
+    const state = createInitialBattleState();
+    const [koran, korantan, korangarth] = state.playerHand.map((card) => card.definition);
+
+    expect(koran.move).toEqual({ options: [{ dirs: "all8", range: 1 }] });
+    expect(koran.attackProfile).toEqual({ pattern: "adjacent", range: 1, lineOfSight: false });
+
+    expect(korantan.move).toEqual({ options: [{ dirs: "orthogonal", range: 2 }] });
+    expect(korantan.attackProfile).toEqual({ pattern: "adjacent", range: 1, lineOfSight: false });
+
+    expect(korangarth.move).toEqual({ options: [{ dirs: "all8", range: 3, pass: "all" }] });
+    expect(korangarth.attackProfile).toEqual({
+      pattern: "line",
+      dirs: "orthogonal",
+      range: 2,
+      lineOfSight: true,
+    });
+  });
+
   it("uses unique hand card instance ids", () => {
     const state = createInitialBattleState();
     const ids = state.playerHand.map((card) => card.cardInstanceId);

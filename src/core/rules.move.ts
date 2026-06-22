@@ -1,20 +1,79 @@
-// Move rules. Ported from Unity BattleRules.GetLegalMoveCells / TryMove.
-// Slice movement is Manhattan-distance within the unit's moveRange and the
-// destination cell must be empty. NOTE: only the destination is checked, not the
-// path — correct for the current range-1 cards, but a moveRange >= 2 card could
-// "jump" over an occupant. World design §13 forbids ground units passing through
-// others, so introducing longer-range ground movement requires path-blocking
-// (BFS over empty cells) here first.
+// Move rules. Movement is data-driven by each unit's MoveProfile.
 
 import {
   BattleState,
   BoardPosition,
+  DirSet,
+  Owner,
+  Unit,
   cloneState,
   isInsideBoard,
   position,
+  positionsEqual,
   unitAt,
 } from "./state";
-import { CommandResult, fail, manhattan, succeed } from "./result";
+import { CommandResult, fail, succeed } from "./result";
+
+interface Delta {
+  readonly row: number;
+  readonly col: number;
+}
+
+const ORTHOGONAL: Delta[] = [
+  { row: -1, col: 0 },
+  { row: 1, col: 0 },
+  { row: 0, col: -1 },
+  { row: 0, col: 1 },
+];
+
+const DIAGONAL: Delta[] = [
+  { row: -1, col: -1 },
+  { row: -1, col: 1 },
+  { row: 1, col: -1 },
+  { row: 1, col: 1 },
+];
+
+const KNIGHT: Delta[] = [
+  { row: -2, col: -1 },
+  { row: -2, col: 1 },
+  { row: -1, col: -2 },
+  { row: -1, col: 2 },
+  { row: 1, col: -2 },
+  { row: 1, col: 2 },
+  { row: 2, col: -1 },
+  { row: 2, col: 1 },
+];
+
+function rayDirections(dirs: DirSet, owner: Owner): Delta[] {
+  switch (dirs) {
+    case "orthogonal":
+      return ORTHOGONAL;
+    case "diagonal":
+      return DIAGONAL;
+    case "all8":
+      return [...ORTHOGONAL, ...DIAGONAL];
+    case "forward":
+      return [{ row: owner === "player" ? -1 : 1, col: 0 }];
+    case "knight":
+      return KNIGHT;
+  }
+}
+
+function canPassThrough(unit: Unit, occupant: Unit, pass: "none" | "enemies" | "all"): boolean {
+  if (pass === "all") {
+    return true;
+  }
+  if (pass === "enemies") {
+    return occupant.owner !== unit.owner;
+  }
+  return false;
+}
+
+function addUnique(cells: BoardPosition[], target: BoardPosition): void {
+  if (!cells.some((cell) => positionsEqual(cell, target))) {
+    cells.push(target);
+  }
+}
 
 export function getLegalMoveCells(state: BattleState, unitId: string): BoardPosition[] {
   const unit = state.units.find((u) => u.unitId === unitId);
@@ -23,19 +82,44 @@ export function getLegalMoveCells(state: BattleState, unitId: string): BoardPosi
   }
 
   const cells: BoardPosition[] = [];
-  const range = unit.definition.moveRange;
-  for (let row = unit.position.row - range; row <= unit.position.row + range; row++) {
-    for (let col = unit.position.col - range; col <= unit.position.col + range; col++) {
-      const target = position(row, col);
-      const distance = manhattan(unit.position, target);
-      if (distance === 0 || distance > range) {
-        continue;
+  for (const option of unit.definition.move.options) {
+    if (option.range <= 0) {
+      continue;
+    }
+
+    if (option.dirs === "knight") {
+      for (const delta of KNIGHT) {
+        const target = position(unit.position.row + delta.row, unit.position.col + delta.col);
+        if (isInsideBoard(target) && !unitAt(state, target)) {
+          addUnique(cells, target);
+        }
       }
-      if (isInsideBoard(target) && !unitAt(state, target)) {
-        cells.push(target);
+      continue;
+    }
+
+    for (const delta of rayDirections(option.dirs, unit.owner)) {
+      for (let step = 1; step <= option.range; step++) {
+        const target = position(
+          unit.position.row + delta.row * step,
+          unit.position.col + delta.col * step,
+        );
+        if (!isInsideBoard(target)) {
+          break;
+        }
+
+        const occupant = unitAt(state, target);
+        if (!occupant) {
+          addUnique(cells, target);
+          continue;
+        }
+
+        if (!canPassThrough(unit, occupant, option.pass ?? "none")) {
+          break;
+        }
       }
     }
   }
+
   return cells;
 }
 
@@ -57,12 +141,8 @@ export function tryMove(
   if (!isInsideBoard(target)) {
     return fail(state, "Target cell is outside the board.");
   }
-  if (unitAt(state, target)) {
-    return fail(state, "Target cell is occupied.");
-  }
-  const distance = manhattan(unit.position, target);
-  if (distance === 0 || distance > unit.definition.moveRange) {
-    return fail(state, "Target cell is outside move range.");
+  if (!getLegalMoveCells(state, unitId).some((cell) => positionsEqual(cell, target))) {
+    return fail(state, "Target cell is not a legal move destination.");
   }
 
   const from = unit.position;

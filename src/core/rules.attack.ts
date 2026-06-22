@@ -6,23 +6,121 @@
 //
 // Divergence from world design §10/§14 (decided 2026-06-20, Hearthstone-style):
 // the enemy headquarters/hero has no board cell. A unit may attack it directly
-// regardless of position — no range check, no defender-on-cell check. This
-// replaces the HQ-cell-and-defender model those sections originally described.
+// regardless of position — no range check, no defender-on-cell check.
 
-import { BattleState, BoardPosition, Unit, cloneState } from "./state";
 import {
-  BattleAction,
-  CommandResult,
-  fail,
-  isInAttackRange,
-  succeed,
-} from "./result";
+  AttackProfile,
+  BattleState,
+  BoardPosition,
+  DirSet,
+  Unit,
+  cloneState,
+  isInsideBoard,
+  position,
+  positionsEqual,
+  unitAt,
+} from "./state";
+import { BattleAction, CommandResult, fail, succeed } from "./result";
+
+interface Delta {
+  readonly row: number;
+  readonly col: number;
+}
+
+const ORTHOGONAL: Delta[] = [
+  { row: -1, col: 0 },
+  { row: 1, col: 0 },
+  { row: 0, col: -1 },
+  { row: 0, col: 1 },
+];
+
+const DIAGONAL: Delta[] = [
+  { row: -1, col: -1 },
+  { row: -1, col: 1 },
+  { row: 1, col: -1 },
+  { row: 1, col: 1 },
+];
 
 function findUnit(state: BattleState, unitId: string): Unit | undefined {
   return state.units.find((u) => u.unitId === unitId);
 }
 
-/** Cells the unit may attack this turn: enemy units in range. The enemy HQ is
+function directions(dirs: DirSet | undefined): Delta[] {
+  switch (dirs ?? "all8") {
+    case "orthogonal":
+      return ORTHOGONAL;
+    case "diagonal":
+      return DIAGONAL;
+    case "all8":
+      return [...ORTHOGONAL, ...DIAGONAL];
+    case "forward":
+      return ORTHOGONAL;
+    case "knight":
+      return [];
+  }
+}
+
+function addUnique(cells: BoardPosition[], target: BoardPosition): void {
+  if (!cells.some((cell) => positionsEqual(cell, target))) {
+    cells.push(target);
+  }
+}
+
+function adjacentAttackCells(
+  state: BattleState,
+  attacker: Unit,
+  profile: AttackProfile,
+): BoardPosition[] {
+  const cells: BoardPosition[] = [];
+  for (const delta of directions("all8")) {
+    for (let step = 1; step <= profile.range; step++) {
+      const target = position(
+        attacker.position.row + delta.row * step,
+        attacker.position.col + delta.col * step,
+      );
+      if (!isInsideBoard(target)) {
+        break;
+      }
+      const occupant = unitAt(state, target);
+      if (occupant && occupant.owner !== attacker.owner) {
+        addUnique(cells, target);
+      }
+    }
+  }
+  return cells;
+}
+
+function lineAttackCells(
+  state: BattleState,
+  attacker: Unit,
+  profile: AttackProfile,
+): BoardPosition[] {
+  const cells: BoardPosition[] = [];
+  for (const delta of directions(profile.dirs)) {
+    for (let step = 1; step <= profile.range; step++) {
+      const target = position(
+        attacker.position.row + delta.row * step,
+        attacker.position.col + delta.col * step,
+      );
+      if (!isInsideBoard(target)) {
+        break;
+      }
+      const occupant = unitAt(state, target);
+      if (!occupant) {
+        continue;
+      }
+      if (occupant.owner !== attacker.owner) {
+        addUnique(cells, target);
+      }
+      if (profile.lineOfSight) {
+        break;
+      }
+    }
+  }
+  return cells;
+}
+
+/** Cells the unit may attack this turn: enemy units in profile. The enemy HQ is
  * always attackable (off-board) and is not represented as a cell. */
 export function getLegalAttackCells(state: BattleState, unitId: string): BoardPosition[] {
   const attacker = findUnit(state, unitId);
@@ -30,16 +128,15 @@ export function getLegalAttackCells(state: BattleState, unitId: string): BoardPo
     return [];
   }
 
-  const range = attacker.definition.attackRange;
-  const cells: BoardPosition[] = [];
-
-  for (const unit of state.units) {
-    if (unit.owner !== attacker.owner && isInAttackRange(attacker.position, unit.position, range)) {
-      cells.push(unit.position);
-    }
+  const profile = attacker.definition.attackProfile;
+  if (profile.range <= 0) {
+    return [];
   }
 
-  return cells;
+  if (profile.pattern === "adjacent") {
+    return adjacentAttackCells(state, attacker, profile);
+  }
+  return lineAttackCells(state, attacker, profile);
 }
 
 export function tryAttack(
@@ -64,12 +161,12 @@ export function tryAttack(
   if (attacker.hasAttackedThisTurn) {
     return fail(state, "Unit has already attacked this turn.");
   }
-  if (!isInAttackRange(attacker.position, target.position, attacker.definition.attackRange)) {
-    return fail(state, "Target is outside attack range.");
+  if (!getLegalAttackCells(state, attackerId).some((cell) => positionsEqual(cell, target.position))) {
+    return fail(state, "Target is outside attack profile.");
   }
 
   const targetRemaining = target.currentLife - attacker.definition.attack;
-  const attackerRemaining = attacker.currentLife - target.definition.attack; // counter
+  const attackerRemaining = attacker.currentLife - target.definition.attack;
 
   const next = cloneState(state);
   next.units = state.units
