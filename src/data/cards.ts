@@ -33,12 +33,15 @@ export interface CardDef {
 
 type RawCardDef = Omit<CardDef, "art">;
 
-const ART_BY_ID: Partial<Record<string, string>> = {
+const ART_BY_ID: Partial<Record<string, string | null>> = {
   "GENJU-001": "GENJU-001.jpg",
   "GENJU-002": "GENJU-002.jpg",
   "GENJU-003": "GENJU-003.jpg",
+  "GENJU-004": null,
   "GENJU-005": "GENJU-005.png",
+  "GENJU-006": null,
   "GENJU-007": "GENJU-007.png",
+  "GENJU-008": null,
   "GENJU-009": "GENJU-009.png",
   "GENJU-010": "GENJU-010.png",
   "SPELL-001": "SPELL-001.png",
@@ -66,3 +69,7 @@ export const CARDS: CardDef[] = [
   ...(data.genjuCards as RawCardDef[]),
   ...(data.spellCards as RawCardDef[]),
 ].map(withArt);
+
+export const CARD_BY_ID: Record<string, CardDef> = Object.fromEntries(
+  CARDS.map((card) => [card.id, card]),
+);
