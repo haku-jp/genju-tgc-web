@@ -33,6 +33,8 @@ export const TEXT_COLOR = {
 export const LAYOUT = {
   /** Fraction of the smaller viewport dimension the 6x6 board occupies. */
   boardFraction: 0.82,
+  /** Fraction of viewport height reserved for the hand tray. */
+  handTrayFraction: 0.26,
   /** Unit token size as a fraction of a tile. */
   unitFraction: 0.82,
 } as const;

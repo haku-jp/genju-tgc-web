@@ -1,11 +1,10 @@
 import Phaser from "phaser";
-import { MenuScene } from "./scenes/MenuScene";
-import { BattleScene } from "./scenes/BattleScene";
-import { ResultScene } from "./scenes/ResultScene";
+import { BattleScene } from "../scenes/BattleScene";
+import { MenuScene } from "../scenes/MenuScene";
+import { ResultScene } from "../scenes/ResultScene";
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  parent: "game",
   backgroundColor: "#0b0e14",
   scale: {
     mode: Phaser.Scale.RESIZE,
@@ -14,4 +13,6 @@ const config: Phaser.Types.Core.GameConfig = {
   scene: [MenuScene, BattleScene, ResultScene],
 };
 
-new Phaser.Game(config);
+export function createGame(parent: HTMLElement): Phaser.Game {
+  return new Phaser.Game({ ...config, parent });
+}

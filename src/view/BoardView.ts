@@ -221,17 +221,39 @@ export class BoardView {
     this.layout = this.computeLayout();
 
     this.drawTiles(state);
+    this.drawHeadquarters();
     this.drawUnits(state);
   }
 
   private computeLayout(): BoardLayout {
     const width = this.scene.scale.width;
     const height = this.scene.scale.height;
-    const boardPixels = Math.min(width, height) * LAYOUT.boardFraction;
-    const tileSize = Math.floor(boardPixels / Math.max(BOARD_ROWS, BOARD_COLS));
+    const trayHeight = height * LAYOUT.handTrayFraction;
+    const availableHeight = height - trayHeight;
+    const boardPixels = Math.min(width, availableHeight) * LAYOUT.boardFraction;
+    const baseTileSize = Math.floor(boardPixels / Math.max(BOARD_ROWS, BOARD_COLS));
+    const cardWidth = Phaser.Math.Clamp(width * 0.085, 76, 132);
+    const cardHeight = cardWidth * (7 / 5);
+    const handTopY = height - 8 - cardHeight * 1.5;
+    const hqMargin = 28;
+    const minOriginY = hqMargin;
+    const maxBoardBottom = handTopY - hqMargin - 8;
+    const tileSize = Math.min(
+      baseTileSize,
+      Math.floor((maxBoardBottom - minOriginY) / BOARD_ROWS),
+    );
+    const boardH = tileSize * BOARD_ROWS;
+    const boardW = tileSize * BOARD_COLS;
+    const originX = Math.round((width - boardW) / 2);
+    const baseOriginY = Math.round((availableHeight - tileSize * BOARD_ROWS) / 2);
+    // Narrow screens put the board under the HUD column; keep HQ labels below it.
+    const overlapsHud = originX < 226;
+    const hudClearOriginY = overlapsHud ? 178 : minOriginY;
+    const maxOriginY = Math.round(maxBoardBottom - boardH);
+    const originY = Phaser.Math.Clamp(baseOriginY, hudClearOriginY, maxOriginY);
     return {
-      originX: Math.round((width - tileSize * BOARD_COLS) / 2),
-      originY: Math.round((height - tileSize * BOARD_ROWS) / 2),
+      originX,
+      originY,
       tileSize,
     };
   }
@@ -253,6 +275,20 @@ export class BoardView {
             isLight ? COLOR.tileLight : COLOR.tileDark,
           )
           .setStrokeStyle(1, COLOR.tileBorder);
+        const zoneTint =
+          row <= 1 ? COLOR.danger : row >= 4 ? COLOR.accent : undefined;
+        const zoneOverlay =
+          zoneTint === undefined
+            ? undefined
+            : this.scene.add
+                .rectangle(center.x, center.y, tileSize - 2, tileSize - 2, zoneTint)
+                .setAlpha(0.06);
+        const topHighlight = this.scene.add
+          .rectangle(center.x, center.y - tileSize / 2 + 1, tileSize - 2, 2, COLOR.muted)
+          .setAlpha(0.22);
+        const bottomShadow = this.scene.add
+          .rectangle(center.x, center.y + tileSize / 2 - 1, tileSize - 2, 3, COLOR.bgDeep)
+          .setAlpha(0.55);
 
         // Only empty cells get tile-level taps; an occupied cell's tap is
         // handled by that unit's own token (drawUnit), avoiding a double
@@ -263,9 +299,43 @@ export class BoardView {
           tile.on("pointerup", () => this.callbacks!.onCellTap(pos));
         }
 
-        this.container.add(tile);
+        this.container.add(
+          zoneOverlay
+            ? [tile, zoneOverlay, topHighlight, bottomShadow]
+            : [tile, topHighlight, bottomShadow],
+        );
       }
     }
+  }
+
+  private drawHeadquarters(): void {
+    const { originX, originY, tileSize } = this.layout;
+    const boardW = tileSize * BOARD_COLS;
+    const cx = originX + boardW / 2;
+    const topY = originY;
+    const bottomY = originY + tileSize * BOARD_ROWS;
+    const enemyLine = this.scene.add
+      .rectangle(cx, topY - 6, boardW * 0.5, 3, COLOR.hq)
+      .setAlpha(0.75);
+    const enemyLabel = this.scene.add
+      .text(cx, topY - 20, "敵本陣", {
+        fontFamily: FONT_FAMILY,
+        fontSize: "13px",
+        color: TEXT_COLOR.hq,
+      })
+      .setOrigin(0.5);
+    const playerLine = this.scene.add
+      .rectangle(cx, bottomY + 6, boardW * 0.5, 3, COLOR.hq)
+      .setAlpha(0.75);
+    const playerLabel = this.scene.add
+      .text(cx, bottomY + 20, "自本陣", {
+        fontFamily: FONT_FAMILY,
+        fontSize: "13px",
+        color: TEXT_COLOR.hq,
+      })
+      .setOrigin(0.5);
+
+    this.container.add([enemyLine, enemyLabel, playerLine, playerLabel]);
   }
 
   private drawUnits(state: BattleState): void {
