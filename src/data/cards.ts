@@ -1,4 +1,5 @@
 import data from "./cards.json";
+import type { MoveProfile, AttackProfile } from "../core/state";
 
 declare global {
   interface ImportMetaEnv {
@@ -22,8 +23,11 @@ export interface CardDef {
   cost: number;
   attack?: number;
   health?: number;
+  piece?: string;
   movement?: string;
   attackRange?: string;
+  move?: MoveProfile;
+  attackProfile?: AttackProfile;
   target?: string;
   rulesText: string;
   role?: string;

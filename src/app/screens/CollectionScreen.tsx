@@ -11,6 +11,8 @@ const text = {
   equip: "\u88c5\u5099",
   close: "\u9589\u3058\u308b",
   target: "\u5bfe\u8c61",
+  piece: "\u99d2\u7a2e",
+  movement: "\u79fb\u52d5",
   effect: "\u52b9\u679c",
   flavor: "\u30d5\u30ec\u30fc\u30d0\u30fc",
 };
@@ -299,6 +301,8 @@ function CardDetail({ card, onClose }: CardDetailProps) {
             {card.type === "genju" && <DetailPill label="HP" value={String(card.health)} />}
           </div>
           {card.subtype && <p style={{ margin: 0, color: "#8b97a6", fontSize: 13 }}>{card.subtype}</p>}
+          {card.type === "genju" && card.piece && <DetailText title={text.piece} text={card.piece} />}
+          {card.type === "genju" && card.movement && <DetailText title={text.movement} text={card.movement} />}
           {card.target && <DetailText title={text.target} text={card.target} />}
           <DetailText title={text.effect} text={card.rulesText} />
           {card.flavorText && <DetailText title={text.flavor} text={card.flavorText} muted />}
