@@ -23,6 +23,7 @@ export function toCardDefinition(cardId: string): CardDefinition | null {
     life: card.health ?? 1,
     move: card.move ?? DEFAULT_MOVE,
     attackProfile: card.attackProfile ?? DEFAULT_ATTACK_PROFILE,
+    art: card.art ?? undefined,
   };
 }
 

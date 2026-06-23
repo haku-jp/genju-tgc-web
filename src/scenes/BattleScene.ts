@@ -4,7 +4,7 @@ import { getLegalSummonCells } from "../core/rules.summon";
 import { getLegalMoveCells } from "../core/rules.move";
 import { getLegalAttackCells } from "../core/rules.attack";
 import { getWinner } from "../core/winloss";
-import { BoardPosition, CardDefinition, Owner } from "../core/state";
+import { BattleState, BoardPosition, CardDefinition, Owner } from "../core/state";
 import { BattleController } from "../controller/BattleController";
 import { BoardView } from "../view/BoardView";
 import { HandView } from "../view/HandView";
@@ -26,6 +26,22 @@ interface BattleSetup {
 
 function nonEmptyDeck(deck: CardDefinition[] | undefined): CardDefinition[] | undefined {
   return deck && deck.length > 0 ? deck : undefined;
+}
+
+function collectArtAssets(state: BattleState): Map<string, string> {
+  const assets = new Map<string, string>();
+  const collect = (definition: CardDefinition): void => {
+    if (definition.art) {
+      assets.set(definition.cardId, definition.art);
+    }
+  };
+
+  state.playerHand.forEach((card) => collect(card.definition));
+  state.playerLibrary.forEach((card) => collect(card.definition));
+  state.enemyHand.forEach((card) => collect(card.definition));
+  state.enemyLibrary.forEach((card) => collect(card.definition));
+  state.units.forEach((unit) => collect(unit.definition));
+  return assets;
 }
 
 /**
@@ -55,12 +71,11 @@ export class BattleScene extends Phaser.Scene {
   create(): void {
     const setup = this.registry.get("battleSetup") as BattleSetup | undefined;
     this.cameras.main.setBackgroundColor("#0b0e14");
-    this.controller = new BattleController(
-      createInitialBattleState({
-        playerDeck: nonEmptyDeck(setup?.playerDeck),
-        enemyDeck: nonEmptyDeck(setup?.enemyDeck),
-      }),
-    );
+    const initialState = createInitialBattleState({
+      playerDeck: nonEmptyDeck(setup?.playerDeck),
+      enemyDeck: nonEmptyDeck(setup?.enemyDeck),
+    });
+    this.controller = new BattleController(initialState);
     this.boardView = new BoardView(this, {
       onCellTap: (pos) => this.handleCellTap(pos),
       onUnitTap: (unitId, owner, pos) => this.handleUnitTap(unitId, owner, pos),
@@ -80,8 +95,25 @@ export class BattleScene extends Phaser.Scene {
       onAttackEnemyHq: () => this.handleAttackEnemyHq(),
     });
     this.render();
+    this.loadCardArt(initialState);
 
     this.scale.on("resize", this.handleResize, this);
+  }
+
+  private loadCardArt(state: BattleState): void {
+    let queued = false;
+    collectArtAssets(state).forEach((url, key) => {
+      if (!this.textures.exists(key)) {
+        this.load.image(key, url);
+        queued = true;
+      }
+    });
+
+    if (!queued) {
+      return;
+    }
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => this.render());
+    this.load.start();
   }
 
   private render(): void {

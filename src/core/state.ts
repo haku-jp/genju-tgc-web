@@ -54,6 +54,7 @@ export interface CardDefinition {
   readonly life: number;
   readonly move: MoveProfile;
   readonly attackProfile: AttackProfile;
+  readonly art?: string;
 }
 
 export interface HandCard {
