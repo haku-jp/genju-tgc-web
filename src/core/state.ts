@@ -81,7 +81,9 @@ export interface BattleState {
   enemyMana: number;
   enemyMaxMana: number;
   playerHand: HandCard[];
+  playerLibrary: HandCard[];
   enemyHand: HandCard[];
+  enemyLibrary: HandCard[];
   units: Unit[];
 }
 
@@ -129,7 +131,9 @@ export function cloneState(state: BattleState): BattleState {
   return {
     ...state,
     playerHand: [...state.playerHand],
+    playerLibrary: [...state.playerLibrary],
     enemyHand: [...state.enemyHand],
+    enemyLibrary: [...state.enemyLibrary],
     units: [...state.units],
   };
 }

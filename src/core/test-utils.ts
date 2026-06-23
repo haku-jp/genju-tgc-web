@@ -49,7 +49,9 @@ export function state(partial: Partial<BattleState> = {}): BattleState {
     enemyMana: 10,
     enemyMaxMana: 10,
     playerHand: [],
+    playerLibrary: [],
     enemyHand: [],
+    enemyLibrary: [],
     units: [],
     ...partial,
   };

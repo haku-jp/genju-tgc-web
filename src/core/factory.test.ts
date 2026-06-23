@@ -2,11 +2,21 @@ import { describe, it, expect } from "vitest";
 import {
   BOARD_COLS,
   BOARD_ROWS,
+  CardDefinition,
   isInsideBoard,
   STARTING_LIFE,
   STARTING_MAX_MANA,
 } from "./state";
 import { createInitialBattleState } from "./factory";
+import { card } from "./test-utils";
+
+const identityShuffle = <T,>(arr: T[]): T[] => arr;
+
+function deck(size: number): CardDefinition[] {
+  return Array.from({ length: size }, (_, index) =>
+    card({ cardId: `deck-${index + 1}`, displayName: `Deck ${index + 1}` }),
+  );
+}
 
 describe("createInitialBattleState", () => {
   it("starts on turn 1 with the player to act by default", () => {
@@ -38,10 +48,55 @@ describe("createInitialBattleState", () => {
   it("gives the player a 5-card opening hand", () => {
     const state = createInitialBattleState();
     expect(state.playerHand).toHaveLength(5);
+    expect(state.playerLibrary).toHaveLength(0);
     state.playerHand.forEach((card) => {
       expect(card.cardInstanceId).toBeTruthy();
       expect(card.definition.manaCost).toBeGreaterThanOrEqual(0);
     });
+  });
+
+  it("builds opening hand and library from a provided player deck", () => {
+    const playerDeck = deck(10);
+    const state = createInitialBattleState({ playerDeck, shuffle: identityShuffle });
+
+    expect(state.playerHand).toHaveLength(5);
+    expect(state.playerLibrary).toHaveLength(5);
+    expect(state.playerHand.map((handCard) => handCard.definition.cardId)).toEqual([
+      "deck-1",
+      "deck-2",
+      "deck-3",
+      "deck-4",
+      "deck-5",
+    ]);
+    expect(state.playerLibrary.map((handCard) => handCard.definition.cardId)).toEqual([
+      "deck-6",
+      "deck-7",
+      "deck-8",
+      "deck-9",
+      "deck-10",
+    ]);
+    expect(new Set(state.playerHand.concat(state.playerLibrary).map((handCard) => handCard.cardInstanceId)).size).toBe(
+      10,
+    );
+    expect(state.units.every((unit) => unit.owner !== "player")).toBe(true);
+  });
+
+  it("builds enemy opening hand and library from a provided enemy deck", () => {
+    const enemyDeck = deck(8);
+    const state = createInitialBattleState({ enemyDeck, shuffle: identityShuffle });
+
+    expect(state.enemyHand.map((handCard) => handCard.definition.cardId)).toEqual([
+      "deck-1",
+      "deck-2",
+      "deck-3",
+      "deck-4",
+      "deck-5",
+    ]);
+    expect(state.enemyLibrary.map((handCard) => handCard.definition.cardId)).toEqual([
+      "deck-6",
+      "deck-7",
+      "deck-8",
+    ]);
   });
 
   it("assigns distinct structured movement and attack profiles to the placeholder cards", () => {

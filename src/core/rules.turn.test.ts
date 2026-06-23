@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { endTurn } from "./rules.turn";
 import { createInitialBattleState } from "./factory";
-import { state, unit } from "./test-utils";
-import { position } from "./state";
+import { card, state, unit } from "./test-utils";
+import { HandCard, position } from "./state";
+
+function hand(id: string): HandCard {
+  return { cardInstanceId: id, definition: card({ cardId: id }) };
+}
 
 describe("endTurn", () => {
   it("flips the turn owner and increments the turn number", () => {
@@ -67,5 +71,50 @@ describe("endTurn", () => {
     expect(p?.hasMovedThisTurn).toBe(false);
     expect(p?.hasAttackedThisTurn).toBe(false);
     expect(e?.hasMovedThisTurn).toBe(true); // untouched
+  });
+
+  it("draws one card for the incoming side at turn start", () => {
+    const s = state({
+      currentTurn: "player",
+      enemyHand: [hand("enemy-hand")],
+      enemyLibrary: [hand("draw-1"), hand("draw-2")],
+    });
+
+    const result = endTurn(s);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.enemyHand.map((card) => card.cardInstanceId)).toEqual(["enemy-hand", "draw-1"]);
+    expect(result.state.enemyLibrary.map((card) => card.cardInstanceId)).toEqual(["draw-2"]);
+  });
+
+  it("does not draw when the incoming side already has seven cards", () => {
+    const fullHand = Array.from({ length: 7 }, (_, index) => hand(`hand-${index}`));
+    const library = [hand("kept")];
+    const s = state({ currentTurn: "player", enemyHand: fullHand, enemyLibrary: library });
+
+    const result = endTurn(s);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.enemyHand).toHaveLength(7);
+    expect(result.state.enemyLibrary.map((card) => card.cardInstanceId)).toEqual(["kept"]);
+  });
+
+  it("does not draw or lose when the incoming side has an empty library", () => {
+    const s = state({
+      currentTurn: "enemy",
+      playerHand: [hand("player-hand")],
+      playerLibrary: [],
+      playerLife: 3,
+    });
+
+    const result = endTurn(s);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.playerHand.map((card) => card.cardInstanceId)).toEqual(["player-hand"]);
+    expect(result.state.playerLibrary).toHaveLength(0);
+    expect(result.state.playerLife).toBe(3);
   });
 });
