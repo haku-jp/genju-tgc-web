@@ -4,7 +4,7 @@ import { getLegalSummonCells } from "../core/rules.summon";
 import { getLegalMoveCells } from "../core/rules.move";
 import { getLegalAttackCells } from "../core/rules.attack";
 import { getWinner } from "../core/winloss";
-import { BoardPosition, Owner } from "../core/state";
+import { BoardPosition, CardDefinition, Owner } from "../core/state";
 import { BattleController } from "../controller/BattleController";
 import { BoardView } from "../view/BoardView";
 import { HandView } from "../view/HandView";
@@ -18,6 +18,15 @@ function samePosition(a: BoardPosition, b: BoardPosition): boolean {
 }
 
 const ENEMY_TURN_DELAY_MS = 600;
+
+interface BattleSetup {
+  playerDeck?: CardDefinition[];
+  enemyDeck?: CardDefinition[];
+}
+
+function nonEmptyDeck(deck: CardDefinition[] | undefined): CardDefinition[] | undefined {
+  return deck && deck.length > 0 ? deck : undefined;
+}
 
 /**
  * Battle scene. T5 renders the board + units, T6 renders the player's hand
@@ -44,8 +53,14 @@ export class BattleScene extends Phaser.Scene {
   }
 
   create(): void {
+    const setup = this.registry.get("battleSetup") as BattleSetup | undefined;
     this.cameras.main.setBackgroundColor("#0b0e14");
-    this.controller = new BattleController(createInitialBattleState());
+    this.controller = new BattleController(
+      createInitialBattleState({
+        playerDeck: nonEmptyDeck(setup?.playerDeck),
+        enemyDeck: nonEmptyDeck(setup?.enemyDeck),
+      }),
+    );
     this.boardView = new BoardView(this, {
       onCellTap: (pos) => this.handleCellTap(pos),
       onUnitTap: (unitId, owner, pos) => this.handleUnitTap(unitId, owner, pos),
