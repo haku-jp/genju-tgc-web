@@ -114,25 +114,25 @@ export class CardZoomOverlay {
     frame.lineStyle(3, edgeColor, 1);
     frame.strokeRoundedRect(cardLeft, cardTop, width, height, 12);
     frame.fillStyle(TITLE_BG, 1);
-    frame.fillRoundedRect(cardLeft + width * 0.03, cardTop + height * 0.025, width * 0.94, height * 0.11, 8);
+    frame.fillRoundedRect(cardLeft + width * 0.03, cardTop + height * 0.035, width * 0.94, height * 0.11, 8);
     frame.setInteractive(
       new Phaser.Geom.Rectangle(cardLeft, cardTop, width, height),
       Phaser.Geom.Rectangle.Contains,
     );
     frame.on("pointerdown", () => this.close());
 
-    const title = this.scene.add.text(cardLeft + width * 0.07, cardTop + height * 0.08, display.name, {
+    const title = this.scene.add.text(cardLeft + width * 0.06, cardTop + height * 0.085, display.name, {
       fontFamily: FONT_TITLE,
       fontSize: `${Math.round(width * 0.078)}px`,
       color: TEXT_COLOR.ink,
       fontStyle: "700",
     });
     title.setOrigin(0, 0.5);
-    this.fitTextToWidth(title, width * 0.68, width * 0.078, width * 0.045);
+    this.fitTextToWidth(title, width * 0.6, width * 0.078, width * 0.045);
 
-    const costRadius = width * 0.07;
+    const costRadius = width * 0.06;
     const costX = cardLeft + width * 0.89;
-    const costY = cardTop + height * 0.08;
+    const costY = cardTop + height * 0.095;
     const costGem = this.scene.add.graphics();
     costGem.fillStyle(COST_BG, 1);
     costGem.fillCircle(costX, costY, costRadius);
