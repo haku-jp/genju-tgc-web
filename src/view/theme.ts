@@ -40,3 +40,6 @@ export const LAYOUT = {
 } as const;
 
 export const FONT_FAMILY = "system-ui, sans-serif";
+export const FONT_TITLE = '"Zen Old Mincho", serif';
+export const FONT_BODY = '"Shippori Mincho", serif';
+export const FONT_NUM = '"Cinzel", serif';

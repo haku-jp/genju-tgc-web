@@ -98,6 +98,7 @@ export class BattleScene extends Phaser.Scene {
     this.loadCardArt(initialState);
 
     this.scale.on("resize", this.handleResize, this);
+    document.fonts.ready.then(() => this.render());
   }
 
   private loadCardArt(state: BattleState): void {
