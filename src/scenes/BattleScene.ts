@@ -22,6 +22,8 @@ const COMMANDER_ASSETS = new Map<string, string>([
   ["player-commander", `${import.meta.env.BASE_URL}generals/player-commander.png`],
   ["enemy-commander", `${import.meta.env.BASE_URL}generals/enemy-commander.png`],
 ]);
+const BACKGROUND_KEY = "battlefield";
+const BACKGROUND_URL = `${import.meta.env.BASE_URL}bg/battlefield.png`;
 
 interface BattleSetup {
   playerDeck?: CardDefinition[];
@@ -63,6 +65,7 @@ export class BattleScene extends Phaser.Scene {
   private handView!: HandView;
   private cardZoomOverlay!: CardZoomOverlay;
   private hud!: Hud;
+  private background?: Phaser.GameObjects.Image;
 
   private selectedUnitId: string | null = null;
   private moveCells: BoardPosition[] = [];
@@ -100,13 +103,13 @@ export class BattleScene extends Phaser.Scene {
       onAttackEnemyHq: () => this.handleAttackEnemyHq(),
     });
     this.render();
-    this.loadCardArt(initialState);
+    this.loadAssets(initialState);
 
     this.scale.on("resize", this.handleResize, this);
     document.fonts.ready.then(() => this.render());
   }
 
-  private loadCardArt(state: BattleState): void {
+  private loadAssets(state: BattleState): void {
     let queued = false;
     collectArtAssets(state).forEach((url, key) => {
       if (!this.textures.exists(key)) {
@@ -114,12 +117,43 @@ export class BattleScene extends Phaser.Scene {
         queued = true;
       }
     });
+    if (this.textures.exists(BACKGROUND_KEY)) {
+      this.createBackground();
+    } else {
+      this.load.image(BACKGROUND_KEY, BACKGROUND_URL);
+      queued = true;
+    }
 
     if (!queued) {
       return;
     }
-    this.load.once(Phaser.Loader.Events.COMPLETE, () => this.render());
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      this.createBackground();
+      this.render();
+    });
     this.load.start();
+  }
+
+  /** Lays the generated guild-board art behind everything, cover-scaled to fill the viewport. */
+  private createBackground(): void {
+    if (this.background || !this.textures.exists(BACKGROUND_KEY)) {
+      return;
+    }
+    this.background = this.add.image(0, 0, BACKGROUND_KEY).setOrigin(0, 0).setDepth(-10);
+    this.fitBackground();
+  }
+
+  private fitBackground(): void {
+    if (!this.background) {
+      return;
+    }
+    const { width, height } = this.scale;
+    const source = this.background.texture.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const srcWidth = source.width || this.background.width;
+    const srcHeight = source.height || this.background.height;
+    const scale = Math.max(width / srcWidth, height / srcHeight);
+    this.background.setScale(scale);
+    this.background.setPosition((width - srcWidth * scale) / 2, (height - srcHeight * scale) / 2);
   }
 
   private render(): void {
@@ -286,6 +320,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private handleResize(): void {
+    this.fitBackground();
     this.render();
   }
 }

@@ -39,6 +39,7 @@ const LUNGE_MS = 120;
 const HITSTOP_MS = 60;
 const DEATH_FADE_MS = 200;
 const SHAKE_NORMAL_PX = 3;
+const TILE_RADIUS = 4;
 const DAMAGE_POP_RISE_PX = 18;
 const DAMAGE_POP_MS = 500;
 
@@ -221,6 +222,7 @@ export class BoardView {
     this.layout = this.computeLayout();
 
     this.drawTiles(state);
+    this.drawBoardFrame();
     this.drawHeadquarters();
     this.drawUnits(state);
   }
@@ -260,52 +262,63 @@ export class BoardView {
 
   private drawTiles(state: BattleState): void {
     const { tileSize } = this.layout;
+    const w = tileSize - 2;
+    const h = tileSize - 2;
 
     for (let row = 0; row < BOARD_ROWS; row++) {
       for (let col = 0; col < BOARD_COLS; col++) {
         const pos = { row, col };
         const center = this.cellCenter(pos);
         const isLight = (row + col) % 2 === 0;
-        const tile = this.scene.add
-          .rectangle(
-            center.x,
-            center.y,
-            tileSize - 2,
-            tileSize - 2,
-            isLight ? COLOR.tileLight : COLOR.tileDark,
-          )
-          .setStrokeStyle(1, COLOR.tileBorder);
         const zoneTint =
           row <= 1 ? COLOR.danger : row >= 4 ? COLOR.accent : undefined;
-        const zoneOverlay =
-          zoneTint === undefined
-            ? undefined
-            : this.scene.add
-                .rectangle(center.x, center.y, tileSize - 2, tileSize - 2, zoneTint)
-                .setAlpha(0.06);
+
+        const tile = this.scene.add.graphics();
+        const left = center.x - w / 2;
+        const top = center.y - h / 2;
+        tile.fillStyle(isLight ? COLOR.tileLight : COLOR.tileDark, 0.45);
+        tile.fillRoundedRect(left, top, w, h, TILE_RADIUS);
+        if (zoneTint !== undefined) {
+          tile.fillStyle(zoneTint, 0.06);
+          tile.fillRoundedRect(left, top, w, h, TILE_RADIUS);
+        }
+        tile.lineStyle(1, COLOR.tileBorder, 1);
+        tile.strokeRoundedRect(left, top, w, h, TILE_RADIUS);
+
         const topHighlight = this.scene.add
-          .rectangle(center.x, center.y - tileSize / 2 + 1, tileSize - 2, 2, COLOR.muted)
-          .setAlpha(0.22);
+          .rectangle(center.x, top + 1, w, 2, COLOR.muted)
+          .setAlpha(0.25);
         const bottomShadow = this.scene.add
-          .rectangle(center.x, center.y + tileSize / 2 - 1, tileSize - 2, 3, COLOR.bgDeep)
-          .setAlpha(0.55);
+          .rectangle(center.x, top + h - 1, w, 3, COLOR.bgDeep)
+          .setAlpha(0.5);
+        const rightShadow = this.scene.add
+          .rectangle(left + w - 1, center.y, 3, h, COLOR.bgDeep)
+          .setAlpha(0.5);
 
         // Only empty cells get tile-level taps; an occupied cell's tap is
         // handled by that unit's own token (drawUnit), avoiding a double
         // dispatch when both happen to sit at the same screen point.
         const occupied = state.units.some((u) => u.position.row === row && u.position.col === col);
+        const hitArea = this.scene.add.rectangle(center.x, center.y, w, h, 0xffffff, 0);
         if (this.callbacks && !occupied) {
-          tile.setInteractive();
-          tile.on("pointerup", () => this.callbacks!.onCellTap(pos));
+          hitArea.setInteractive();
+          hitArea.on("pointerup", () => this.callbacks!.onCellTap(pos));
         }
 
-        this.container.add(
-          zoneOverlay
-            ? [tile, zoneOverlay, topHighlight, bottomShadow]
-            : [tile, topHighlight, bottomShadow],
-        );
+        this.container.add([tile, topHighlight, bottomShadow, rightShadow, hitArea]);
       }
     }
+  }
+
+  /** Single decorative frame around the whole board (style guide: gold, low alpha). */
+  private drawBoardFrame(): void {
+    const { originX, originY, tileSize } = this.layout;
+    const boardW = tileSize * BOARD_COLS;
+    const boardH = tileSize * BOARD_ROWS;
+    const frame = this.scene.add
+      .rectangle(originX + boardW / 2, originY + boardH / 2, boardW, boardH, COLOR.hq, 0)
+      .setStrokeStyle(2, COLOR.hq, 0.5);
+    this.container.add(frame);
   }
 
   private drawHeadquarters(): void {
