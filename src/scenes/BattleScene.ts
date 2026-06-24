@@ -18,6 +18,10 @@ function samePosition(a: BoardPosition, b: BoardPosition): boolean {
 }
 
 const ENEMY_TURN_DELAY_MS = 600;
+const COMMANDER_ASSETS = new Map<string, string>([
+  ["player-commander", `${import.meta.env.BASE_URL}generals/player-commander.png`],
+  ["enemy-commander", `${import.meta.env.BASE_URL}generals/enemy-commander.png`],
+]);
 
 interface BattleSetup {
   playerDeck?: CardDefinition[];
@@ -41,6 +45,7 @@ function collectArtAssets(state: BattleState): Map<string, string> {
   state.enemyHand.forEach((card) => collect(card.definition));
   state.enemyLibrary.forEach((card) => collect(card.definition));
   state.units.forEach((unit) => collect(unit.definition));
+  COMMANDER_ASSETS.forEach((url, key) => assets.set(key, url));
   return assets;
 }
 

@@ -14,6 +14,10 @@ export interface HudCallbacks {
 interface StatusPanel {
   container: Phaser.GameObjects.Container;
   panelRect: Phaser.GameObjects.Rectangle;
+  portraitKey: string;
+  portraitMask: Phaser.GameObjects.Graphics;
+  portraitFrame: Phaser.GameObjects.Arc;
+  portraitImage?: Phaser.GameObjects.Image;
   hpText: Phaser.GameObjects.Text;
   manaText: Phaser.GameObjects.Text;
 }
@@ -29,6 +33,7 @@ export class Hud {
   private readonly endTurnLabel: Phaser.GameObjects.Text;
   private readonly attackHqButton: Phaser.GameObjects.Rectangle;
   private readonly attackHqLabel: Phaser.GameObjects.Text;
+  private statusPanelCount = 0;
 
   constructor(scene: Phaser.Scene, callbacks: HudCallbacks) {
     this.scene = scene;
@@ -87,35 +92,51 @@ export class Hud {
 
   private createStatusPanel(tag: string): StatusPanel {
     const panel = this.scene.add.container(0, 0);
+    const portraitKey = this.statusPanelCount === 0 ? "player-commander" : "enemy-commander";
+    this.statusPanelCount += 1;
+    const panelW = 260;
+    const panelH = 56;
+    const portraitRadius = panelH * 0.4;
+    const portraitX = 12 + portraitRadius;
+    const portraitY = panelH / 2;
+    const textX = portraitX + portraitRadius + 14;
     const panelRect = this.scene.add
-      .rectangle(0, 0, 210, 56, COLOR.panel)
+      .rectangle(0, 0, panelW, panelH, COLOR.panel)
       .setOrigin(0, 0)
       .setStrokeStyle(1, COLOR.tileBorder);
-    const tagText = this.scene.add.text(12, 8, tag, {
+    const tagText = this.scene.add.text(textX, 8, tag, {
       fontFamily: FONT_FAMILY,
       fontSize: "12px",
       color: TEXT_COLOR.muted,
     });
-    const hpDot = this.scene.add.circle(18, 34, 6, COLOR.danger);
+    const portraitMask = this.scene.add.graphics();
+    portraitMask.fillStyle(0xffffff, 1);
+    portraitMask.fillCircle(portraitX, portraitY, portraitRadius - 1);
+    portraitMask.setVisible(false);
+    const portraitPlaceholder = this.scene.add.circle(portraitX, portraitY, portraitRadius, COLOR.panel);
+    const portraitFrame = this.scene.add.circle(portraitX, portraitY, portraitRadius);
+    portraitFrame.setFillStyle(COLOR.panel, 0);
+    portraitFrame.setStrokeStyle(2, COLOR.tileBorder);
+    const hpDot = this.scene.add.circle(textX + 6, 34, 6, COLOR.danger);
     const hpText = this.scene.add
-      .text(32, 34, "", {
+      .text(textX + 20, 34, "", {
         fontFamily: FONT_FAMILY,
         fontSize: "20px",
         color: TEXT_COLOR.ink,
         fontStyle: "bold",
       })
       .setOrigin(0, 0.5);
-    const manaDot = this.scene.add.circle(96, 34, 5, COLOR.accent);
+    const manaDot = this.scene.add.circle(textX + 84, 34, 5, COLOR.accent);
     const manaText = this.scene.add
-      .text(108, 34, "", {
+      .text(textX + 96, 34, "", {
         fontFamily: FONT_FAMILY,
         fontSize: "14px",
         color: TEXT_COLOR.accent,
       })
       .setOrigin(0, 0.5);
 
-    panel.add([panelRect, tagText, hpDot, hpText, manaDot, manaText]);
-    return { container: panel, panelRect, hpText, manaText };
+    panel.add([panelRect, portraitPlaceholder, portraitMask, portraitFrame, tagText, hpDot, hpText, manaDot, manaText]);
+    return { container: panel, panelRect, portraitKey, portraitMask, portraitFrame, hpText, manaText };
   }
 
   private layout(): void {
@@ -151,6 +172,8 @@ export class Hud {
     const isPlayerTurn = state.currentTurn === "player";
     this.playerPanel.panelRect.setStrokeStyle(isPlayerTurn ? 2 : 1, isPlayerTurn ? COLOR.accent : COLOR.tileBorder);
     this.enemyPanel.panelRect.setStrokeStyle(isPlayerTurn ? 1 : 2, isPlayerTurn ? COLOR.tileBorder : COLOR.danger);
+    this.renderPortrait(this.playerPanel, isPlayerTurn ? COLOR.accent : COLOR.tileBorder);
+    this.renderPortrait(this.enemyPanel, isPlayerTurn ? COLOR.tileBorder : COLOR.danger);
 
     this.endTurnButton.setFillStyle(isPlayerTurn ? COLOR.accent : COLOR.muted);
     if (isPlayerTurn) {
@@ -158,5 +181,22 @@ export class Hud {
     } else {
       this.endTurnButton.disableInteractive();
     }
+  }
+
+  private renderPortrait(panel: StatusPanel, strokeColor: number): void {
+    panel.portraitFrame.setStrokeStyle(2, strokeColor);
+    if (panel.portraitImage || !this.scene.textures.exists(panel.portraitKey)) {
+      return;
+    }
+
+    const radius = panel.portraitFrame.radius;
+    const image = this.scene.add.image(panel.portraitFrame.x, panel.portraitFrame.y, panel.portraitKey);
+    const source = image.texture.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const sourceWidth = source.width || image.width;
+    const sourceHeight = source.height || image.height;
+    image.setScale((radius * 2) / Math.min(sourceWidth, sourceHeight));
+    image.setMask(panel.portraitMask.createGeometryMask());
+    panel.container.addAt(image, 2);
+    panel.portraitImage = image;
   }
 }
