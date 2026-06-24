@@ -1,10 +1,12 @@
 import Phaser from "phaser";
 import { CardDefinition } from "../core/state";
 import { CARD_BY_ID, type CardDef } from "../data/cards";
+import { wrapJa } from "./jaWrap";
 import { FONT_BODY, FONT_NUM, FONT_TITLE, TEXT_COLOR } from "./theme";
 
 const ZOOM_DURATION_MS = 150;
-const ZOOM_WIDTH_FRACTION = 0.42;
+const OVERLAY_DEPTH = 10000;
+const ZOOM_WIDTH_FRACTION = 0.5;
 const CARD_HEIGHT_RATIO = 7 / 5;
 
 const FRAME_BG = 0x11151d;
@@ -50,7 +52,7 @@ export class CardZoomOverlay {
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    this.container = scene.add.container(0, 0).setDepth(1000).setVisible(false);
+    this.container = scene.add.container(0, 0).setDepth(OVERLAY_DEPTH).setVisible(false);
 
     this.scrim = scene.add
       .rectangle(0, 0, 0, 0, 0x000000, 0.62)
@@ -94,8 +96,13 @@ export class CardZoomOverlay {
     const screenHeight = this.scene.scale.height;
     this.scrim.setSize(screenWidth, screenHeight);
 
-    const width = screenWidth * ZOOM_WIDTH_FRACTION;
-    const height = width * CARD_HEIGHT_RATIO;
+    let width = screenWidth * ZOOM_WIDTH_FRACTION;
+    let height = width * CARD_HEIGHT_RATIO;
+    const maxHeight = screenHeight * 0.92;
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height / CARD_HEIGHT_RATIO;
+    }
     const cardTop = -height / 2;
     const cardLeft = -width / 2;
     const display = this.displayCard(definition);
@@ -177,7 +184,7 @@ export class CardZoomOverlay {
     const rulesX = artX;
     const rulesY = typeY + height * 0.055;
     const rulesW = artW;
-    const rulesH = cardTop + height * 0.88 - rulesY;
+    const rulesH = cardTop + height * 0.85 - rulesY;
     const rules = this.scene.add.graphics();
     rules.fillStyle(RULES_BG, 1);
     rules.fillRoundedRect(rulesX, rulesY, rulesW, rulesH, 7);
@@ -242,30 +249,27 @@ export class CardZoomOverlay {
   ): Phaser.GameObjects.GameObject[] {
     const pad = cardWidth * 0.028;
     const textWidth = width - pad * 2;
-    const rulesText = this.wrapByChars(display.rulesText || "", 24).join("\n");
-    const rules = this.scene.add.text(x + pad, y + pad, rulesText, {
+    const rules = this.scene.add.text(x + pad, y + pad, "", {
       fontFamily: FONT_BODY,
-      fontSize: `${Math.round(cardWidth * 0.05)}px`,
+      fontSize: `${Math.round(cardWidth * 0.045)}px`,
       color: TEXT_COLOR.ink,
-      wordWrap: { width: textWidth, useAdvancedWrap: true },
       lineSpacing: 3,
     });
     rules.setOrigin(0, 0);
-    this.fitTextToBox(rules, textWidth, height - pad * 2, cardWidth * 0.05, cardWidth * 0.032);
+    this.fitJaTextToBox(rules, display.rulesText || "", textWidth, height - pad * 2, cardWidth * 0.045, cardWidth * 0.03);
 
     const objects: Phaser.GameObjects.GameObject[] = [rules];
     const remaining = height - pad * 2 - rules.height - pad * 0.7;
     if (display.flavorText && remaining > cardWidth * 0.09) {
-      const flavor = this.scene.add.text(x + pad, y + pad + rules.height + pad * 0.7, this.wrapByChars(display.flavorText, 28).join("\n"), {
+      const flavor = this.scene.add.text(x + pad, y + pad + rules.height + pad * 0.7, "", {
         fontFamily: FONT_BODY,
-        fontSize: `${Math.round(cardWidth * 0.032)}px`,
+        fontSize: `${Math.round(cardWidth * 0.03)}px`,
         color: TEXT_COLOR.muted,
         fontStyle: "italic",
-        wordWrap: { width: textWidth, useAdvancedWrap: true },
         lineSpacing: 2,
       });
       flavor.setOrigin(0, 0);
-      this.fitTextToBox(flavor, textWidth, remaining, cardWidth * 0.032, cardWidth * 0.026);
+      this.fitJaTextToBox(flavor, display.flavorText, textWidth, remaining, cardWidth * 0.03, cardWidth * 0.024);
       objects.push(flavor);
     }
     return objects;
@@ -279,7 +283,7 @@ export class CardZoomOverlay {
     height: number,
   ): Phaser.GameObjects.GameObject[] {
     const statW = width * 0.26;
-    const statH = height * 0.1;
+    const statH = height * 0.09;
     const statX = cardLeft + width * 0.68;
     const statY = cardTop + height * 0.875;
     const box = this.scene.add.graphics();
@@ -344,18 +348,6 @@ export class CardZoomOverlay {
     return `${move}\n${attack}`;
   }
 
-  private wrapByChars(text: string, maxChars: number): string[] {
-    const normalized = text.replace(/\s+/g, " ").trim();
-    if (!normalized) {
-      return [""];
-    }
-    const lines: string[] = [];
-    for (let i = 0; i < normalized.length; i += maxChars) {
-      lines.push(normalized.slice(i, i + maxChars));
-    }
-    return lines;
-  }
-
   private fitTextToWidth(
     text: Phaser.GameObjects.Text,
     maxWidth: number,
@@ -370,16 +362,18 @@ export class CardZoomOverlay {
     }
   }
 
-  private fitTextToBox(
+  private fitJaTextToBox(
     text: Phaser.GameObjects.Text,
+    source: string,
     maxWidth: number,
     maxHeight: number,
     initialSize: number,
     minSize: number,
   ): void {
-    text.setWordWrapWidth(maxWidth, true);
     for (let size = Math.round(initialSize); size >= Math.round(minSize); size -= 1) {
       text.setFontSize(size);
+      const maxCharsPerLine = Math.max(1, Math.floor(maxWidth / (size * 1.05)));
+      text.setText(wrapJa(source, maxCharsPerLine));
       if (text.height <= maxHeight) {
         return;
       }
