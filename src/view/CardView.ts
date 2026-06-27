@@ -130,7 +130,9 @@ export class CardView {
         fontSize: `${Math.round(width * 0.12)}px`,
         color: "#f7efe0",
         align: "center",
-        wordWrap: { width: width * 0.85 },
+        // Japanese has no spaces, so the default whitespace-only wrap never
+        // breaks a sentence at all - useAdvancedWrap wraps per-character too.
+        wordWrap: { width: width * 0.85, useAdvancedWrap: true },
       })
       .setOrigin(0.5);
 
@@ -141,7 +143,7 @@ export class CardView {
         fontSize: `${Math.round(width * 0.095)}px`,
         color: TEXT_COLOR.muted,
         align: "center",
-        wordWrap: { width: width * 0.82 },
+        wordWrap: { width: width * 0.82, useAdvancedWrap: true },
       })
       .setOrigin(0.5);
 
