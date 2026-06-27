@@ -15,7 +15,6 @@ interface StatusPanel {
   container: Phaser.GameObjects.Container;
   panelRect: Phaser.GameObjects.Rectangle;
   portraitKey: string;
-  portraitMask: Phaser.GameObjects.Graphics;
   portraitFrame: Phaser.GameObjects.Arc;
   portraitImage?: Phaser.GameObjects.Image;
   hpText: Phaser.GameObjects.Text;
@@ -109,10 +108,6 @@ export class Hud {
       fontSize: "12px",
       color: TEXT_COLOR.muted,
     });
-    const portraitMask = this.scene.add.graphics();
-    portraitMask.fillStyle(0xffffff, 1);
-    portraitMask.fillCircle(portraitX, portraitY, portraitRadius - 1);
-    portraitMask.setVisible(false);
     const portraitPlaceholder = this.scene.add.circle(portraitX, portraitY, portraitRadius, COLOR.panel);
     const portraitFrame = this.scene.add.circle(portraitX, portraitY, portraitRadius);
     portraitFrame.setFillStyle(COLOR.panel, 0);
@@ -135,8 +130,8 @@ export class Hud {
       })
       .setOrigin(0, 0.5);
 
-    panel.add([panelRect, portraitPlaceholder, portraitMask, portraitFrame, tagText, hpDot, hpText, manaDot, manaText]);
-    return { container: panel, panelRect, portraitKey, portraitMask, portraitFrame, hpText, manaText };
+    panel.add([panelRect, portraitPlaceholder, portraitFrame, tagText, hpDot, hpText, manaDot, manaText]);
+    return { container: panel, panelRect, portraitKey, portraitFrame, hpText, manaText };
   }
 
   private layout(): void {
@@ -195,7 +190,21 @@ export class Hud {
     const sourceWidth = source.width || image.width;
     const sourceHeight = source.height || image.height;
     image.setScale((radius * 2) / Math.min(sourceWidth, sourceHeight));
-    image.setMask(panel.portraitMask.createGeometryMask());
+
+    // Mask source must be a detached Graphics (make.graphics(.., false), not
+    // add.graphics()) drawn in world coords - one parented into the same
+    // container as the masked image does not clip correctly in Phaser 3.90.
+    const worldX = panel.container.x + panel.portraitFrame.x;
+    const worldY = panel.container.y + panel.portraitFrame.y;
+    const mask = this.scene.make.graphics(undefined, false);
+    mask.fillStyle(0xffffff, 1);
+    mask.fillCircle(worldX, worldY, radius - 1);
+    image.setMask(mask.createGeometryMask());
+    // Detached Graphics aren't on the scene's display list, so scene shutdown
+    // won't sweep them up automatically - destroy explicitly to avoid a leak
+    // each time a new battle (and thus a new Hud) is created.
+    this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => mask.destroy());
+
     panel.container.addAt(image, 2);
     panel.portraitImage = image;
   }
