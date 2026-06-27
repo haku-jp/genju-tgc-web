@@ -50,6 +50,8 @@ export class BoardView {
   private readonly callbacks?: BoardViewCallbacks;
   private highlightTween?: Phaser.Tweens.Tween;
   private layout: BoardLayout = { originX: 0, originY: 0, tileSize: 0 };
+  /** Detached mask-source Graphics for unit icons; not parented, so render() must destroy them itself. */
+  private unitMasks: Phaser.GameObjects.Graphics[] = [];
 
   constructor(scene: Phaser.Scene, callbacks?: BoardViewCallbacks) {
     this.scene = scene;
@@ -219,6 +221,8 @@ export class BoardView {
 
   render(state: BattleState): void {
     this.container.removeAll(true);
+    this.unitMasks.forEach((mask) => mask.destroy());
+    this.unitMasks = [];
     this.layout = this.computeLayout();
 
     this.drawTiles(state);
@@ -357,40 +361,76 @@ export class BoardView {
     }
   }
 
+  /**
+   * Unit token: a masked circular monster icon (cropped from the card art)
+   * with backdrop/ring/name/stats/acted-state as separate layers, instead of
+   * the old name-in-a-rectangle "shogi piece" look.
+   */
   private drawUnit(unit: Unit): void {
     const { tileSize } = this.layout;
     const center = this.cellCenter(unit.position);
-    const size = tileSize * LAYOUT.unitFraction;
-    const fill = unit.owner === "player" ? COLOR.playerUnit : COLOR.enemyUnit;
+    const radius = (tileSize * LAYOUT.unitFraction) / 2;
+    const ownerFill = unit.owner === "player" ? COLOR.playerUnit : COLOR.enemyUnit;
+    const ringColor = unit.owner === "player" ? COLOR.accent : COLOR.danger;
 
     const unitContainer = this.scene.add.container(center.x, center.y).setName(unit.unitId);
+    const layers: Phaser.GameObjects.GameObject[] = [];
 
-    const token = this.scene.add
-      .rectangle(0, 0, size, size, fill)
-      .setStrokeStyle(2, COLOR.ink);
+    const backdrop = this.scene.add.circle(0, 0, radius, ownerFill);
+    layers.push(backdrop);
+
+    const iconKey = unit.definition.cardId;
+    if (this.scene.textures.exists(iconKey)) {
+      // Mask source must be a detached Graphics (make.graphics(.., false), not
+      // add.graphics()) drawn in world coords - a mask parented into the same
+      // container as the masked image does not clip correctly in Phaser 3.90.
+      const mask = this.scene.make.graphics(undefined, false);
+      mask.fillStyle(0xffffff, 1);
+      mask.fillCircle(center.x, center.y, radius - 1);
+      this.unitMasks.push(mask);
+      const icon = this.scene.add.image(0, 0, iconKey);
+      const source = icon.texture.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+      const srcWidth = source.width || icon.width;
+      const srcHeight = source.height || icon.height;
+      icon.setScale((radius * 2) / Math.min(srcWidth, srcHeight));
+      icon.setMask(mask.createGeometryMask());
+      layers.push(icon);
+    }
+
+    const ring = this.scene.add.circle(0, 0, radius, 0x000000, 0).setStrokeStyle(2, ringColor, 1);
+    layers.push(ring);
 
     const name = this.scene.add
-      .text(0, -size * 0.28, unit.definition.displayName, {
+      .text(0, radius + 3, unit.definition.displayName, {
         fontFamily: FONT_FAMILY,
-        fontSize: `${Math.round(tileSize * 0.16)}px`,
-        color: TEXT_COLOR.ink,
+        fontSize: `${Math.round(tileSize * 0.12)}px`,
+        color: TEXT_COLOR.muted,
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5, 0);
+    layers.push(name);
 
-    const stats = this.scene.add
-      .text(0, size * 0.26, `${unit.definition.attack} / ${unit.currentLife}`, {
+    const statBadge = this.scene.add
+      .rectangle(radius * 0.62, radius * 0.62, tileSize * 0.4, tileSize * 0.2, COLOR.bgDeep, 0.85)
+      .setStrokeStyle(1, COLOR.ink, 0.5);
+    const statText = this.scene.add
+      .text(radius * 0.62, radius * 0.62, `${unit.definition.attack}/${unit.currentLife}`, {
         fontFamily: FONT_FAMILY,
-        fontSize: `${Math.round(tileSize * 0.2)}px`,
+        fontSize: `${Math.round(tileSize * 0.14)}px`,
         color: TEXT_COLOR.ink,
         fontStyle: "bold",
       })
       .setOrigin(0.5);
+    layers.push(statBadge, statText);
 
-    unitContainer.add([token, name, stats]);
+    if (unit.hasAttackedThisTurn) {
+      layers.push(this.scene.add.circle(0, 0, radius, 0x000000, 0.45));
+    }
+
+    unitContainer.add(layers);
 
     if (this.callbacks) {
-      token.setInteractive();
-      token.on("pointerup", () => this.callbacks!.onUnitTap(unit.unitId, unit.owner, unit.position));
+      backdrop.setInteractive(new Phaser.Geom.Circle(0, 0, radius), Phaser.Geom.Circle.Contains);
+      backdrop.on("pointerup", () => this.callbacks!.onUnitTap(unit.unitId, unit.owner, unit.position));
     }
 
     this.container.add(unitContainer);
