@@ -9,10 +9,22 @@ const ART_INSET_RATIO = 0.05;
 const DRAG_THRESHOLD_PX = 6;
 /** Fraction of card height the art occupies before the name banner overlaps it. */
 const ART_HEIGHT_FRACTION = 0.58;
+/**
+ * Max characters shown in the rules-text plate. The plate's height and the
+ * font size both scale with card width, so the number of lines that fit is
+ * scale-invariant - this cap holds at any hand-card size. Long text is
+ * truncated with "…"; the full text is still available via tap-to-zoom
+ * (CardZoomOverlay), so nothing is lost, just not crammed into a 100px card.
+ */
+const RULES_TEXT_MAX_CHARS = 34;
 
 function rarityColorOf(definition: HandCard["definition"]): number {
   const rarity = definition.rarity as keyof typeof RARITY_COLOR | undefined;
   return rarity && RARITY_COLOR[rarity] !== undefined ? RARITY_COLOR[rarity] : RARITY_COLOR.S;
+}
+
+function truncateRulesText(text: string): string {
+  return text.length > RULES_TEXT_MAX_CHARS ? `${text.slice(0, RULES_TEXT_MAX_CHARS)}…` : text;
 }
 
 export interface CardViewCallbacks {
@@ -122,8 +134,9 @@ export class CardView {
       })
       .setOrigin(0.5);
 
+    const rulesDisplay = rulesText ? truncateRulesText(rulesText) : `${definition.attack} / ${definition.life}`;
     const rules = this.scene.add
-      .text(0, (artBottom + height / 2) / 2, rulesText || `${definition.attack} / ${definition.life}`, {
+      .text(0, (artBottom + height / 2) / 2, rulesDisplay, {
         fontFamily: FONT_FAMILY,
         fontSize: `${Math.round(width * 0.095)}px`,
         color: TEXT_COLOR.muted,
