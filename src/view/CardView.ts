@@ -1,12 +1,19 @@
 import Phaser from "phaser";
 import { HandCard } from "../core/state";
-import { COLOR, FONT_FAMILY, TEXT_COLOR } from "./theme";
+import { COLOR, FONT_FAMILY, RARITY_COLOR, TEXT_COLOR } from "./theme";
 
 const RETURN_DURATION_MS = 200;
 const SHRINK_DURATION_MS = 250;
 const DRAG_SCALE = 1.1;
 const ART_INSET_RATIO = 0.05;
 const DRAG_THRESHOLD_PX = 6;
+/** Fraction of card height the art occupies before the name banner overlaps it. */
+const ART_HEIGHT_FRACTION = 0.58;
+
+function rarityColorOf(definition: HandCard["definition"]): number {
+  const rarity = definition.rarity as keyof typeof RARITY_COLOR | undefined;
+  return rarity && RARITY_COLOR[rarity] !== undefined ? RARITY_COLOR[rarity] : RARITY_COLOR.S;
+}
 
 export interface CardViewCallbacks {
   onTap(handCard: HandCard, handIndex: number): void;
@@ -59,65 +66,104 @@ export class CardView {
   private buildVisual(width: number, height: number): void {
     const definition = this.handCard.definition;
     const hasArt = this.scene.textures.exists(definition.cardId);
+    const rarityColor = rarityColorOf(definition);
+    const rulesText = (definition.rulesText as string | undefined) ?? "";
+
+    const artBottom = -height / 2 + height * ART_HEIGHT_FRACTION;
     const base = this.scene.add.rectangle(0, 0, width, height, COLOR.panel);
     const visualObjects: Phaser.GameObjects.GameObject[] = [base];
 
     if (hasArt) {
-      const art = this.scene.add.image(0, -height * 0.02, definition.cardId);
+      const art = this.scene.add.image(0, -height / 2 + (height * ART_HEIGHT_FRACTION) / 2, definition.cardId);
       const maxWidth = width * (1 - ART_INSET_RATIO * 2);
-      const maxHeight = height * 0.86;
-      const scale = Math.min(maxWidth / art.width, maxHeight / art.height);
+      const maxHeight = height * ART_HEIGHT_FRACTION;
+      const scale = Math.max(maxWidth / art.width, maxHeight / art.height);
       art.setScale(scale);
       visualObjects.push(art);
     }
 
-    const topBand = this.scene.add.rectangle(
-      0,
-      -height / 2 + height * 0.16,
-      width,
-      height * 0.32,
-      0x05070a,
-      hasArt ? 0.72 : 0,
-    );
-    const bottomBand = this.scene.add.rectangle(
-      0,
-      height / 2 - height * 0.12,
-      width,
-      height * 0.24,
-      0x05070a,
-      hasArt ? 0.72 : 0,
-    );
-    const frame = this.scene.add.rectangle(0, 0, width, height).setStrokeStyle(2, COLOR.accent);
+    // Rules-text plate: everything below the art/name banner.
+    const textPlate = this.scene.add
+      .rectangle(0, (artBottom + height / 2) / 2, width * 0.94, height / 2 - artBottom - 4, 0x05070a, 0.78)
+      .setStrokeStyle(1, rarityColor, 0.4);
+    visualObjects.push(textPlate);
 
+    // Name banner: overlaps the bottom edge of the art.
+    const nameBanner = this.scene.add
+      .rectangle(0, artBottom, width, height * 0.13, 0x05070a, 0.88)
+      .setStrokeStyle(1, rarityColor, 0.6);
+    visualObjects.push(nameBanner);
+
+    const frame = this.scene.add.rectangle(0, 0, width, height).setStrokeStyle(3, rarityColor);
+
+    // Cost gem: a rotated-square "diamond" in the top-left corner.
+    const costX = -width / 2 + width * 0.14;
+    const costY = -height / 2 + height * 0.1;
+    const costGem = this.scene.add
+      .rectangle(costX, costY, width * 0.2, width * 0.2, COLOR.accent)
+      .setStrokeStyle(2, COLOR.ink)
+      .setAngle(45);
     const cost = this.scene.add
-      .text(-width / 2 + width * 0.12, -height / 2 + height * 0.1, `${definition.manaCost}`, {
+      .text(costX, costY, `${definition.manaCost}`, {
         fontFamily: FONT_FAMILY,
-        fontSize: `${Math.round(width * 0.18)}px`,
-        color: TEXT_COLOR.accent,
+        fontSize: `${Math.round(width * 0.16)}px`,
+        color: TEXT_COLOR.ink,
         fontStyle: "bold",
       })
       .setOrigin(0.5);
 
     const name = this.scene.add
-      .text(0, -height * 0.1, definition.displayName, {
+      .text(0, artBottom, definition.displayName, {
         fontFamily: FONT_FAMILY,
-        fontSize: `${Math.round(width * 0.13)}px`,
-        color: hasArt ? "#f7efe0" : TEXT_COLOR.ink,
+        fontSize: `${Math.round(width * 0.12)}px`,
+        color: "#f7efe0",
         align: "center",
         wordWrap: { width: width * 0.85 },
       })
       .setOrigin(0.5);
 
-    const stats = this.scene.add
-      .text(0, height / 2 - height * 0.1, `${definition.attack} / ${definition.life}`, {
+    const rules = this.scene.add
+      .text(0, (artBottom + height / 2) / 2, rulesText || `${definition.attack} / ${definition.life}`, {
         fontFamily: FONT_FAMILY,
-        fontSize: `${Math.round(width * 0.16)}px`,
-        color: TEXT_COLOR.health,
+        fontSize: `${Math.round(width * 0.095)}px`,
+        color: TEXT_COLOR.muted,
+        align: "center",
+        wordWrap: { width: width * 0.82 },
+      })
+      .setOrigin(0.5);
+
+    // ATK/HP gems: small circular badges in the bottom corners.
+    const atkGem = this.scene.add.circle(-width / 2 + width * 0.16, height / 2 - height * 0.08, width * 0.13, COLOR.danger);
+    const atkText = this.scene.add
+      .text(atkGem.x, atkGem.y, `${definition.attack}`, {
+        fontFamily: FONT_FAMILY,
+        fontSize: `${Math.round(width * 0.13)}px`,
+        color: TEXT_COLOR.ink,
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+    const hpGem = this.scene.add.circle(width / 2 - width * 0.16, height / 2 - height * 0.08, width * 0.13, COLOR.playerUnit);
+    const hpText = this.scene.add
+      .text(hpGem.x, hpGem.y, `${definition.life}`, {
+        fontFamily: FONT_FAMILY,
+        fontSize: `${Math.round(width * 0.13)}px`,
+        color: TEXT_COLOR.ink,
         fontStyle: "bold",
       })
       .setOrigin(0.5);
 
-    this.container.add([...visualObjects, topBand, bottomBand, frame, cost, name, stats]);
+    this.container.add([
+      ...visualObjects,
+      frame,
+      costGem,
+      cost,
+      name,
+      rules,
+      atkGem,
+      atkText,
+      hpGem,
+      hpText,
+    ]);
   }
 
   private bindInput(): void {

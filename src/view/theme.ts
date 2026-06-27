@@ -20,6 +20,14 @@ export const COLOR = {
   selected: 0xffffff, // selected-unit ring
 } as const;
 
+/** Card-frame border color by rarity (mirrors src/app/screens/LobbyScreen.tsx's RARITY_EDGE). */
+export const RARITY_COLOR: Record<"S" | "R" | "L" | "I", number> = {
+  I: 0xf2e3b3,
+  L: 0xe8c870,
+  R: 0x3da9fc,
+  S: 0x8b97a6,
+} as const;
+
 /** CSS color strings for Phaser text styles. */
 export const TEXT_COLOR = {
   ink: "#e8e0d0",

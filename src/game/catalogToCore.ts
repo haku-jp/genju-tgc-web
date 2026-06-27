@@ -24,6 +24,8 @@ export function toCardDefinition(cardId: string): CardDefinition | null {
     move: card.move ?? DEFAULT_MOVE,
     attackProfile: card.attackProfile ?? DEFAULT_ATTACK_PROFILE,
     art: card.art ?? undefined,
+    rarity: card.rarity,
+    rulesText: card.rulesText,
   };
 }
 
