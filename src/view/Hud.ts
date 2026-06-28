@@ -14,11 +14,19 @@ export interface HudCallbacks {
 interface StatusPanel {
   container: Phaser.GameObjects.Container;
   panelRect: Phaser.GameObjects.Rectangle;
+  topBand: Phaser.GameObjects.Rectangle;
   portraitKey: string;
   portraitFrame: Phaser.GameObjects.Arc;
   portraitImage?: Phaser.GameObjects.Image;
   hpText: Phaser.GameObjects.Text;
   manaText: Phaser.GameObjects.Text;
+}
+
+interface GlowButton {
+  glow: Phaser.GameObjects.Rectangle;
+  button: Phaser.GameObjects.Rectangle;
+  label: Phaser.GameObjects.Text;
+  glowTween: Phaser.Tweens.Tween;
 }
 
 export class Hud {
@@ -28,10 +36,8 @@ export class Hud {
   private readonly turnLabel: Phaser.GameObjects.Text;
   private readonly playerPanel: StatusPanel;
   private readonly enemyPanel: StatusPanel;
-  private readonly endTurnButton: Phaser.GameObjects.Rectangle;
-  private readonly endTurnLabel: Phaser.GameObjects.Text;
-  private readonly attackHqButton: Phaser.GameObjects.Rectangle;
-  private readonly attackHqLabel: Phaser.GameObjects.Text;
+  private readonly endTurn: GlowButton;
+  private readonly attackHq: GlowButton;
   private statusPanelCount = 0;
 
   constructor(scene: Phaser.Scene, callbacks: HudCallbacks) {
@@ -48,41 +54,22 @@ export class Hud {
     this.playerPanel = this.createStatusPanel("あなた");
     this.enemyPanel = this.createStatusPanel("敵");
 
-    this.endTurnButton = scene.add
-      .rectangle(0, 0, 130, 44, COLOR.accent)
-      .setStrokeStyle(2, COLOR.ink);
-    this.endTurnLabel = scene.add
-      .text(0, 0, "End Turn", {
-        fontFamily: FONT_FAMILY,
-        fontSize: "16px",
-        color: TEXT_COLOR.ink,
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5);
+    this.endTurn = this.createGlowButton(130, 44, "ターン終了", COLOR.accent);
+    this.endTurn.button.on("pointerup", () => this.callbacks.onEndTurn());
 
-    this.endTurnButton.on("pointerup", () => this.callbacks.onEndTurn());
-
-    this.attackHqButton = scene.add
-      .rectangle(0, 0, 130, 36, COLOR.danger)
-      .setStrokeStyle(2, COLOR.ink);
-    this.attackHqLabel = scene.add
-      .text(0, 0, "本陣を攻撃", {
-        fontFamily: FONT_FAMILY,
-        fontSize: "14px",
-        color: TEXT_COLOR.ink,
-        fontStyle: "bold",
-      })
-      .setOrigin(0.5);
-    this.attackHqButton.on("pointerup", () => this.callbacks.onAttackEnemyHq());
+    this.attackHq = this.createGlowButton(130, 36, "本陣を攻撃", COLOR.danger);
+    this.attackHq.button.on("pointerup", () => this.callbacks.onAttackEnemyHq());
 
     this.container.add([
       this.turnLabel,
       this.playerPanel.container,
       this.enemyPanel.container,
-      this.endTurnButton,
-      this.endTurnLabel,
-      this.attackHqButton,
-      this.attackHqLabel,
+      this.endTurn.glow,
+      this.endTurn.button,
+      this.endTurn.label,
+      this.attackHq.glow,
+      this.attackHq.button,
+      this.attackHq.label,
     ]);
     this.layout();
     this.setAttackEnemyHqAvailable(false);
@@ -103,6 +90,11 @@ export class Hud {
       .rectangle(0, 0, panelW, panelH, COLOR.panel)
       .setOrigin(0, 0)
       .setStrokeStyle(1, COLOR.tileBorder);
+    // Gold banner strip along the top - the "plate" look the bare rectangle lacked.
+    const topBand = this.scene.add
+      .rectangle(0, 0, panelW, 3, COLOR.hq)
+      .setOrigin(0, 0)
+      .setAlpha(0.7);
     const tagText = this.scene.add.text(textX, 8, tag, {
       fontFamily: FONT_FAMILY,
       fontSize: "12px",
@@ -112,26 +104,88 @@ export class Hud {
     const portraitFrame = this.scene.add.circle(portraitX, portraitY, portraitRadius);
     portraitFrame.setFillStyle(COLOR.panel, 0);
     portraitFrame.setStrokeStyle(2, COLOR.tileBorder);
-    const hpDot = this.scene.add.circle(textX + 6, 34, 6, COLOR.danger);
+    // HP gem: a circle with a small offset highlight to read as a polished
+    // stone rather than a flat UI dot.
+    const hpGem = this.scene.add.circle(textX + 7, 34, 7, COLOR.danger).setStrokeStyle(1, COLOR.ink, 0.6);
+    const hpShine = this.scene.add.circle(textX + 5, 32, 2, 0xffffff, 0.5);
     const hpText = this.scene.add
-      .text(textX + 20, 34, "", {
+      .text(textX + 22, 34, "", {
         fontFamily: FONT_FAMILY,
         fontSize: "20px",
         color: TEXT_COLOR.ink,
         fontStyle: "bold",
       })
       .setOrigin(0, 0.5);
-    const manaDot = this.scene.add.circle(textX + 84, 34, 5, COLOR.accent);
+    // Mana gem: a diamond, matching the cost-gem language already used on
+    // hand cards (CardView.ts) so the same shape means "mana" everywhere.
+    const manaGem = this.scene.add
+      .rectangle(textX + 90, 34, 11, 11, COLOR.accent)
+      .setStrokeStyle(1, COLOR.ink, 0.6)
+      .setAngle(45);
     const manaText = this.scene.add
-      .text(textX + 96, 34, "", {
+      .text(textX + 102, 34, "", {
         fontFamily: FONT_FAMILY,
         fontSize: "14px",
         color: TEXT_COLOR.accent,
       })
       .setOrigin(0, 0.5);
 
-    panel.add([panelRect, portraitPlaceholder, portraitFrame, tagText, hpDot, hpText, manaDot, manaText]);
-    return { container: panel, panelRect, portraitKey, portraitFrame, hpText, manaText };
+    panel.add([
+      panelRect,
+      topBand,
+      portraitPlaceholder,
+      portraitFrame,
+      tagText,
+      hpGem,
+      hpShine,
+      hpText,
+      manaGem,
+      manaText,
+    ]);
+    return { container: panel, panelRect, topBand, portraitKey, portraitFrame, hpText, manaText };
+  }
+
+  /** A button with a soft pulsing glow behind it; glow is paused/hidden when inactive. */
+  private createGlowButton(width: number, height: number, text: string, color: number): GlowButton {
+    const glow = this.scene.add.rectangle(0, 0, width + 16, height + 16, color, 0.35);
+    const button = this.scene.add.rectangle(0, 0, width, height, color).setStrokeStyle(3, COLOR.hq, 0.8);
+    const label = this.scene.add
+      .text(0, 0, text, {
+        fontFamily: FONT_FAMILY,
+        fontSize: "16px",
+        color: TEXT_COLOR.ink,
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+    const glowTween = this.scene.tweens.add({
+      targets: glow,
+      alpha: { from: 0.15, to: 0.4 },
+      duration: 700,
+      yoyo: true,
+      repeat: -1,
+    });
+    return { glow, button, label, glowTween };
+  }
+
+  private setGlowButtonPosition(glowButton: GlowButton, x: number, y: number): void {
+    glowButton.glow.setPosition(x, y);
+    glowButton.button.setPosition(x, y);
+    glowButton.label.setPosition(x, y);
+  }
+
+  /** Wires a button's enabled/disabled visual + interactivity + glow together. */
+  private setGlowButtonActive(glowButton: GlowButton, active: boolean, activeColor: number): void {
+    glowButton.button.setFillStyle(active ? activeColor : COLOR.muted);
+    glowButton.glow.setFillStyle(activeColor);
+    if (active) {
+      glowButton.button.setInteractive();
+      glowButton.glowTween.resume();
+      glowButton.glow.setVisible(true);
+    } else {
+      glowButton.button.disableInteractive();
+      glowButton.glowTween.pause();
+      glowButton.glow.setVisible(false);
+    }
   }
 
   private layout(): void {
@@ -140,20 +194,13 @@ export class Hud {
 
     this.playerPanel.container.setPosition(16, 34);
     this.enemyPanel.container.setPosition(16, 98);
-    this.endTurnButton.setPosition(width - 80, trayTop - 30);
-    this.endTurnLabel.setPosition(width - 80, trayTop - 30);
-    this.attackHqButton.setPosition(width - 80, trayTop - 78);
-    this.attackHqLabel.setPosition(width - 80, trayTop - 78);
+    this.setGlowButtonPosition(this.endTurn, width - 80, trayTop - 30);
+    this.setGlowButtonPosition(this.attackHq, width - 80, trayTop - 78);
   }
 
   /** Highlights the attack-HQ button when the current selection can use it. */
   setAttackEnemyHqAvailable(available: boolean): void {
-    this.attackHqButton.setFillStyle(available ? COLOR.danger : COLOR.muted);
-    if (available) {
-      this.attackHqButton.setInteractive();
-    } else {
-      this.attackHqButton.disableInteractive();
-    }
+    this.setGlowButtonActive(this.attackHq, available, COLOR.danger);
   }
 
   render(state: BattleState): void {
@@ -167,15 +214,12 @@ export class Hud {
     const isPlayerTurn = state.currentTurn === "player";
     this.playerPanel.panelRect.setStrokeStyle(isPlayerTurn ? 2 : 1, isPlayerTurn ? COLOR.accent : COLOR.tileBorder);
     this.enemyPanel.panelRect.setStrokeStyle(isPlayerTurn ? 1 : 2, isPlayerTurn ? COLOR.tileBorder : COLOR.danger);
+    this.playerPanel.topBand.setAlpha(isPlayerTurn ? 0.9 : 0.4);
+    this.enemyPanel.topBand.setAlpha(isPlayerTurn ? 0.4 : 0.9);
     this.renderPortrait(this.playerPanel, isPlayerTurn ? COLOR.accent : COLOR.tileBorder);
     this.renderPortrait(this.enemyPanel, isPlayerTurn ? COLOR.tileBorder : COLOR.danger);
 
-    this.endTurnButton.setFillStyle(isPlayerTurn ? COLOR.accent : COLOR.muted);
-    if (isPlayerTurn) {
-      this.endTurnButton.setInteractive();
-    } else {
-      this.endTurnButton.disableInteractive();
-    }
+    this.setGlowButtonActive(this.endTurn, isPlayerTurn, COLOR.accent);
   }
 
   private renderPortrait(panel: StatusPanel, strokeColor: number): void {
