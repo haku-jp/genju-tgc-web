@@ -283,7 +283,7 @@ export class BoardView {
         tile.fillStyle(isLight ? COLOR.tileLight : COLOR.tileDark, 0.45);
         tile.fillRoundedRect(left, top, w, h, TILE_RADIUS);
         if (zoneTint !== undefined) {
-          tile.fillStyle(zoneTint, 0.06);
+          tile.fillStyle(zoneTint, 0.1);
           tile.fillRoundedRect(left, top, w, h, TILE_RADIUS);
         }
         tile.lineStyle(1, COLOR.tileBorder, 1);
@@ -314,7 +314,8 @@ export class BoardView {
     }
   }
 
-  /** Single decorative frame around the whole board (style guide: gold, low alpha). */
+  /** Decorative frame around the whole board (gold, low alpha) plus small
+   * corner ornaments so the frame reads as a forged plate, not a plain box. */
   private drawBoardFrame(): void {
     const { originX, originY, tileSize } = this.layout;
     const boardW = tileSize * BOARD_COLS;
@@ -323,6 +324,21 @@ export class BoardView {
       .rectangle(originX + boardW / 2, originY + boardH / 2, boardW, boardH, COLOR.hq, 0)
       .setStrokeStyle(2, COLOR.hq, 0.5);
     this.container.add(frame);
+
+    const corners = [
+      { x: originX, y: originY },
+      { x: originX + boardW, y: originY },
+      { x: originX, y: originY + boardH },
+      { x: originX + boardW, y: originY + boardH },
+    ];
+    const ornamentSize = Math.max(8, tileSize * 0.16);
+    for (const corner of corners) {
+      const diamond = this.scene.add
+        .rectangle(corner.x, corner.y, ornamentSize, ornamentSize, COLOR.hq, 0)
+        .setStrokeStyle(2, COLOR.hq, 0.6)
+        .setAngle(45);
+      this.container.add(diamond);
+    }
   }
 
   private drawHeadquarters(): void {
