@@ -49,6 +49,7 @@ export class BoardView {
   private readonly highlightContainer: Phaser.GameObjects.Container;
   private readonly callbacks?: BoardViewCallbacks;
   private highlightTween?: Phaser.Tweens.Tween;
+  private selectionRingTween?: Phaser.Tweens.Tween;
   private layout: BoardLayout = { originX: 0, originY: 0, tileSize: 0 };
   /** Detached mask-source Graphics for unit icons; not parented, so render() must destroy them itself. */
   private unitMasks: Phaser.GameObjects.Graphics[] = [];
@@ -92,8 +93,12 @@ export class BoardView {
     this.startHighlightPulse();
   }
 
-  /** Adds a filled glow group without clearing existing groups (T9: move+attack shown together). */
-  addHighlightGroup(cells: BoardPosition[], color: number): void {
+  /**
+   * Adds a filled glow group without clearing existing groups (T9: move+attack
+   * shown together). Attack cells additionally get 4 corner ticks ("target
+   * reticle") so they read as dangerous even at a glance, not just red.
+   */
+  addHighlightGroup(cells: BoardPosition[], color: number, style: "move" | "attack" = "move"): void {
     const { tileSize } = this.layout;
     for (const cell of cells) {
       const center = this.cellCenter(cell);
@@ -101,10 +106,28 @@ export class BoardView {
         .rectangle(center.x, center.y, tileSize * 0.85, tileSize * 0.85, color, 0.35)
         .setStrokeStyle(2, color);
       this.highlightContainer.add(glow);
+
+      if (style === "attack") {
+        const half = tileSize * 0.42;
+        const tick = tileSize * 0.14;
+        const reticle = this.scene.add.graphics();
+        reticle.lineStyle(2, color, 0.9);
+        for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+          const cx = center.x + sx * half;
+          const cy = center.y + sy * half;
+          reticle.beginPath();
+          reticle.moveTo(cx, cy - sy * tick);
+          reticle.lineTo(cx, cy);
+          reticle.lineTo(cx - sx * tick, cy);
+          reticle.strokePath();
+        }
+        this.highlightContainer.add(reticle);
+      }
     }
   }
 
-  /** Stroke-only ring marking the currently selected unit's cell. */
+  /** Stroke-only ring marking the currently selected unit's cell, slowly
+   * rotating so the selection reads as "active" rather than a static box. */
   drawSelectionRing(pos: BoardPosition): void {
     const { tileSize } = this.layout;
     const center = this.cellCenter(pos);
@@ -112,6 +135,13 @@ export class BoardView {
       .rectangle(center.x, center.y, tileSize * 0.92, tileSize * 0.92, COLOR.selected, 0)
       .setStrokeStyle(3, COLOR.selected);
     this.highlightContainer.add(ring);
+    this.selectionRingTween?.stop();
+    this.selectionRingTween = this.scene.tweens.add({
+      targets: ring,
+      angle: 360,
+      duration: 6000,
+      repeat: -1,
+    });
   }
 
   startHighlightPulse(): void {
@@ -130,12 +160,13 @@ export class BoardView {
     this.clearHighlights();
     this.drawSelectionRing(unitPos);
     this.addHighlightGroup(moveCells, COLOR.accent);
-    this.addHighlightGroup(attackCells, COLOR.danger);
+    this.addHighlightGroup(attackCells, COLOR.danger, "attack");
     this.startHighlightPulse();
   }
 
   clearHighlights(): void {
     this.highlightTween?.stop();
+    this.selectionRingTween?.stop();
     this.highlightContainer.removeAll(true);
     this.highlightContainer.setAlpha(1);
   }
