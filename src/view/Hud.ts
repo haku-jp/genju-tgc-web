@@ -29,6 +29,11 @@ interface GlowButton {
   glowTween: Phaser.Tweens.Tween;
 }
 
+interface DeckPile {
+  container: Phaser.GameObjects.Container;
+  count: Phaser.GameObjects.Text;
+}
+
 export class Hud {
   private readonly scene: Phaser.Scene;
   private readonly container: Phaser.GameObjects.Container;
@@ -38,6 +43,7 @@ export class Hud {
   private readonly enemyPanel: StatusPanel;
   private readonly endTurn: GlowButton;
   private readonly attackHq: GlowButton;
+  private readonly deckPile: DeckPile;
   private statusPanelCount = 0;
 
   constructor(scene: Phaser.Scene, callbacks: HudCallbacks) {
@@ -60,6 +66,8 @@ export class Hud {
     this.attackHq = this.createGlowButton(130, 36, "本陣を攻撃", COLOR.danger);
     this.attackHq.button.on("pointerup", () => this.callbacks.onAttackEnemyHq());
 
+    this.deckPile = this.createDeckPile();
+
     this.container.add([
       this.turnLabel,
       this.playerPanel.container,
@@ -70,6 +78,7 @@ export class Hud {
       this.attackHq.glow,
       this.attackHq.button,
       this.attackHq.label,
+      this.deckPile.container,
     ]);
     this.layout();
     this.setAttackEnemyHqAvailable(false);
@@ -118,6 +127,18 @@ export class Hud {
       .setOrigin(0, 0.5);
     // Mana gem: a diamond, matching the cost-gem language already used on
     // hand cards (CardView.ts) so the same shape means "mana" everywhere.
+    // A soft pulsing glow behind it reads as a small lit crystal rather than
+    // a flat icon.
+    const manaGlow = this.scene.add
+      .rectangle(textX + 90, 34, 17, 17, COLOR.accent, 0.3)
+      .setAngle(45);
+    this.scene.tweens.add({
+      targets: manaGlow,
+      alpha: { from: 0.15, to: 0.45 },
+      duration: 900,
+      yoyo: true,
+      repeat: -1,
+    });
     const manaGem = this.scene.add
       .rectangle(textX + 90, 34, 11, 11, COLOR.accent)
       .setStrokeStyle(1, COLOR.ink, 0.6)
@@ -139,6 +160,7 @@ export class Hud {
       hpGem,
       hpShine,
       hpText,
+      manaGlow,
       manaGem,
       manaText,
     ]);
@@ -188,6 +210,39 @@ export class Hud {
     }
   }
 
+  /** Small fanned stack of card-backs showing how many cards are left to draw. */
+  private createDeckPile(): DeckPile {
+    const container = this.scene.add.container(0, 0);
+    const cardW = 38;
+    const cardH = 52;
+    const layers: Phaser.GameObjects.GameObject[] = [];
+    for (let i = 2; i >= 0; i--) {
+      const offset = i * 3;
+      layers.push(
+        this.scene.add
+          .rectangle(offset, -offset, cardW, cardH, COLOR.panel)
+          .setStrokeStyle(2, COLOR.hq, 0.7),
+      );
+    }
+    const label = this.scene.add
+      .text(0, -cardH / 2 - 12, "自分の山札", {
+        fontFamily: FONT_FAMILY,
+        fontSize: "11px",
+        color: TEXT_COLOR.muted,
+      })
+      .setOrigin(0.5);
+    const count = this.scene.add
+      .text(0, 0, "", {
+        fontFamily: FONT_FAMILY,
+        fontSize: "20px",
+        color: TEXT_COLOR.ink,
+        fontStyle: "bold",
+      })
+      .setOrigin(0.5);
+    container.add([...layers, label, count]);
+    return { container, count };
+  }
+
   private layout(): void {
     const { width, height } = this.scene.scale;
     const trayTop = height - height * LAYOUT.handTrayFraction;
@@ -196,6 +251,7 @@ export class Hud {
     this.enemyPanel.container.setPosition(16, 98);
     this.setGlowButtonPosition(this.endTurn, width - 80, trayTop - 30);
     this.setGlowButtonPosition(this.attackHq, width - 80, trayTop - 78);
+    this.deckPile.container.setPosition(width - 50, 50);
   }
 
   /** Highlights the attack-HQ button when the current selection can use it. */
@@ -220,6 +276,7 @@ export class Hud {
     this.renderPortrait(this.enemyPanel, isPlayerTurn ? COLOR.tileBorder : COLOR.danger);
 
     this.setGlowButtonActive(this.endTurn, isPlayerTurn, COLOR.accent);
+    this.deckPile.count.setText(`${state.playerLibrary.length}`);
   }
 
   private renderPortrait(panel: StatusPanel, strokeColor: number): void {
