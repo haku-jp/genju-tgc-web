@@ -15,6 +15,13 @@ const TOTAL_LIMIT: Partial<Record<Rarity, number>> = {
   L: 3,
 };
 
+const RARITY_LABEL: Record<Rarity, string> = {
+  S: "標準",
+  R: "希少",
+  L: "伝説",
+  I: "幻",
+};
+
 export interface DeckValidationResult {
   ok: boolean;
   errors: string[];
@@ -31,18 +38,18 @@ export function validateDeck(deck: Deck, collection?: Record<string, number>): D
   const total = deckCount(deck);
 
   if (total !== DECK_SIZE) {
-    errors.push(`Deck must contain exactly ${DECK_SIZE} cards.`);
+    errors.push(`デッキはちょうど${DECK_SIZE}枚にしてください（現在${total}枚）。`);
   }
 
   for (const entry of deck.cards) {
     if (entry.count <= 0 || !Number.isInteger(entry.count)) {
-      errors.push(`${entry.cardId} has an invalid count.`);
+      errors.push(`${entry.cardId} の枚数指定が不正です。`);
       continue;
     }
 
     const card = CARD_BY_ID[entry.cardId];
     if (!card) {
-      errors.push(`${entry.cardId} is not a known card.`);
+      errors.push(`${entry.cardId} は存在しないカードIDです。`);
       continue;
     }
 
@@ -55,18 +62,18 @@ export function validateDeck(deck: Deck, collection?: Record<string, number>): D
     const sameNameLimit = SAME_NAME_LIMIT[card.rarity];
 
     if (count > sameNameLimit) {
-      errors.push(`${cardId} exceeds the ${card.rarity} copy limit of ${sameNameLimit}.`);
+      errors.push(`${card.name}は同名${sameNameLimit}枚までです。`);
     }
 
     if (collection && count > (collection[cardId] ?? 0)) {
-      errors.push(`${cardId} exceeds owned copies.`);
+      errors.push(`${card.name}は所持枚数を超えています。`);
     }
   }
 
   for (const [rarity, limit] of Object.entries(TOTAL_LIMIT) as [Rarity, number][]) {
     const rarityCount = countByRarity[rarity] ?? 0;
     if (rarityCount > limit) {
-      errors.push(`${rarity} cards exceed the deck total limit of ${limit}.`);
+      errors.push(`${RARITY_LABEL[rarity]}レアリティのカードはデッキ全体で${limit}枚までです。`);
     }
   }
 

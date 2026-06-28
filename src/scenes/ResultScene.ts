@@ -23,7 +23,7 @@ export class ResultScene extends Phaser.Scene {
     this.won = data.winner === "player";
 
     this.resultText = this.add
-      .text(0, 0, this.won ? "WIN" : "LOSE", {
+      .text(0, 0, this.won ? "勝利" : "敗北", {
         fontFamily: FONT_FAMILY,
         fontSize: "56px",
         color: this.won ? TEXT_COLOR.health : TEXT_COLOR.danger,
@@ -36,7 +36,7 @@ export class ResultScene extends Phaser.Scene {
       .setStrokeStyle(2, COLOR.ink)
       .setInteractive();
     this.label = this.add
-      .text(0, 0, "メニューへ", {
+      .text(0, 0, "ロビーへ", {
         fontFamily: FONT_FAMILY,
         fontSize: "22px",
         color: TEXT_COLOR.ink,
@@ -44,7 +44,10 @@ export class ResultScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.button.on("pointerup", () => this.scene.start("Menu"));
+    this.button.on("pointerup", () => {
+      const setup = this.registry.get("battleSetup") as { onExitToLobby?: () => void } | undefined;
+      setup?.onExitToLobby?.();
+    });
 
     this.layout();
     this.scale.on("resize", this.layout, this);

@@ -1,12 +1,13 @@
 import Phaser from "phaser";
 import { BattleScene } from "../scenes/BattleScene";
-import { MenuScene } from "../scenes/MenuScene";
 import { ResultScene } from "../scenes/ResultScene";
 import type { CardDefinition } from "../core/state";
 
 export interface BattleSetup {
   playerDeck?: CardDefinition[];
   enemyDeck?: CardDefinition[];
+  /** Called when the result screen's "ロビーへ" button is pressed. */
+  onExitToLobby?: () => void;
 }
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -16,7 +17,7 @@ const config: Phaser.Types.Core.GameConfig = {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [MenuScene, BattleScene, ResultScene],
+  scene: [BattleScene, ResultScene],
 };
 
 export function createGame(parent: HTMLElement, setup?: BattleSetup): Phaser.Game {

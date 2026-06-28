@@ -20,11 +20,12 @@ export function BattleScreen() {
     if (!ref.current) {
       return;
     }
+    const onExitToLobby = () => setScreen("lobby");
     const game = playerDeck.length > 0
-      ? createGame(ref.current, { playerDeck })
-      : createGame(ref.current);
+      ? createGame(ref.current, { playerDeck, onExitToLobby })
+      : createGame(ref.current, { onExitToLobby });
     return () => game.destroy(true);
-  }, [playerDeck]);
+  }, [playerDeck, setScreen]);
 
   return (
     <>
